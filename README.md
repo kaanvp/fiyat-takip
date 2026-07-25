@@ -2,11 +2,9 @@
 
 Kişisel kullanım için **50'den fazla e-ticaret sitesinden** ürün fiyatlarını otomatik takip eden Flutter uygulaması. Tüm veri cihazda saklanır, arka planda otomatik fiyat kontrolü yapılır.
 
-Desteklenen sitelerden bazıları: **Trendyol, Hepsiburada, Amazon, N11, LC Waikiki, MediaMarkt, Nike, Mavi, Defacto, Koton, IKEA, Carrefoursa, Migros, Şok Market, Gratis, Rossmann, Flo, Pazarama, eBay, Walmart** ve daha fazlası.
-
 ## Özellikler
 
-- **50+ Site Desteği**: Trendyol, Hepsiburada, N11, Amazon, LC Waikiki, Nike, Mavi ve diğer tüm siteler
+- **50+ Site Desteği**: Trendyol, Hepsiburada, N11 gibi popüler siteler dahil 50'den fazla e-ticaret sitesi
 - **Akıllı Scraping**: HTTP → Puppeteer (Chrome) → WebView (gerçek mobil tarayıcı) şeklinde üç kademeli fallback zinciri
 - **Otomatik Fiyat Takibi**: Arka planda periyodik fiyat kontrolü
 - **Fiyat Düşüş Bildirimleri**: Fiyat düştüğünde anlık bildirim
@@ -33,11 +31,11 @@ Site-specific Scraper → Generic HTML Scraper → Smart Fallback (Puppeteer) �
 3. **Smart Fallback Scraper**: HTTP başarısız olursa Puppeteer (headless Chrome) dener
 4. **WebView Scraper**: Son çare olarak gerçek mobil tarayıcı (Cloudflare/Akamai korumalı siteleri geçer)
 
-### Desteklenen Siteler (31/50 HTTP ile çalışır)
+### Desteklenen Siteler (30+/50 HTTP ile çalışır)
 
-Hepsiburada, N11, LC Waikiki, Nike, Mavi, Şok Market, Defacto, Carrefoursa, MediaMarkt, Vatan Bilgisayar, IKEA, Migros, Koton, Mango, Puma, eBay, Walmart, Flo, Pazarama, Dr, Kitap Yurdu, Gratis, Rossmann, Atasun Optik, Madame Coco, English Home, Karaca, Bizim Toptan, İdefix, Farmasi, Amazon
+Trendyol, Hepsiburada, N11, Amazon, LC Waikiki, MediaMarkt, Nike, Mavi, Defacto, Koton, IKEA, Migros, Şok Market, Gratis, Rossmann, Flo, Pazarama, eBay, Walmart ve daha fazlası.
 
-Cloudflare korumalı siteler (Trendyol, Teknosa vb.) Flutter WebView ile telefonda çalışır.
+> ⚠️ **Uyarı**: Bu uygulama kişisel kullanım içindir. Web scraping işlemi, ilgili web sitelerinin kullanım koşullarına tabidir. Sitenin `robots.txt` dosyasına ve kullanım koşullarına uygun hareket edilmesi önerilir.
 
 ## Teknoloji Stack
 
