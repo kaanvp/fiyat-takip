@@ -12,12 +12,6 @@ final productsListProvider = FutureProvider<List<Product>>((ref) async {
   return repository.getActiveProducts();
 });
 
-// Archived products provider
-final archivedProductsProvider = FutureProvider<List<Product>>((ref) async {
-  final repository = ref.watch(productRepositoryProvider);
-  return repository.getArchivedProducts();
-});
-
 // Single product provider
 final productProvider = FutureProvider.family<Product, String>((ref, id) async {
   final repository = ref.watch(productRepositoryProvider);
@@ -113,24 +107,6 @@ class ProductNotifier extends StateNotifier<AsyncValue<List<Product>>> {
   Future<void> deleteProduct(String id) async {
     try {
       await _repository.deleteProduct(id);
-      await loadProducts();
-    } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
-    }
-  }
-
-  Future<void> archiveProduct(String id) async {
-    try {
-      await _repository.archiveProduct(id);
-      await loadProducts();
-    } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
-    }
-  }
-
-  Future<void> unarchiveProduct(String id) async {
-    try {
-      await _repository.unarchiveProduct(id);
       await loadProducts();
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);

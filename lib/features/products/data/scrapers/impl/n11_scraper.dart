@@ -15,23 +15,51 @@ class N11Scraper extends BaseScraper {
 
   @override
   Future<ScrapedProduct> scrape(Uri url) async {
-    final response = await safeGet(url, extraHeaders: {
-      'Referer': 'https://www.n11.com/',
-    });
+    // Try with mobile user-agent and non-www first
+    Uri requestUrl = url;
+    Map<String, String> extraHeaders = {
+      'Referer': 'https://n11.com/',
+    };
 
-    final document = html_parser.parse(response.body);
+    // Try non-www first (avoids bot protection)
+    if (url.host.startsWith('www.')) {
+      requestUrl = url.replace(host: url.host.substring(4));
+    }
 
-    // Strategy 1: JSON-LD
+    http.Response response;
+    try {
+      response = await safeGet(requestUrl, extraHeaders: extraHeaders);
+    } catch (e) {
+      // If non-www fails, try www
+      if (requestUrl != url) {
+        response = await safeGet(url, extraHeaders: extraHeaders);
+      } else {
+        rethrow;
+      }
+    }
+
+    final body = getResponseBody(response);
+    final document = html_parser.parse(body);
+
+    // Strategy 1: JSON-LD structured data
     final jsonLd = extractJsonLdProduct(document);
     if (jsonLd != null) {
-      final product = parseProductFromJsonLd(jsonLd);
+      final product = parseProductFromJsonLd(jsonLd, baseUri: url);
       if (product != null) return product;
     }
 
-    // Strategy 2: HTML Parsing as fallback
+    // Strategy 2: Extract from embedded page data (mobileWebPrice, product data)
+    final pageDataProduct = _extractFromPageData(body, url);
+    if (pageDataProduct != null) return pageDataProduct;
+
+    // Strategy 3: Meta Tag extraction
+    final metaProduct = _extractFromMetaTags(document, url);
+    if (metaProduct != null) return metaProduct;
+
+    // Strategy 4: HTML DOM parsing
     final name = _extractName(document);
     final priceResult = _extractPrice(document);
-    
+
     if (name == null || priceResult == null) {
       throw const ScraperException(
         'Could not extract required product information from N11.',
@@ -47,19 +75,106 @@ class N11Scraper extends BaseScraper {
     );
   }
 
+  /// Extract product data from embedded page JSON
+  ScrapedProduct? _extractFromPageData(String body, Uri url) {
+    try {
+      // Extract name from HTML h1
+      String? name;
+      final h1Match = RegExp(r'<h1[^>]*>(.*?)</h1>', dotAll: true).firstMatch(body);
+      if (h1Match != null) {
+        name = h1Match.group(1)!.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+      }
+      if (name == null || name.isEmpty || name.length < 3) return null;
+
+      // Find price from variant JSON data (inStock variant's price)
+      double? price;
+      
+      // Pattern: find inStock variant's price
+      final variantRegex = RegExp(
+        r'"outOfStock":(?:false|null).{0,200}"price":"(\d+(?:[.,]\d+)?)\s*(?:TL|₺)"',
+        dotAll: true,
+      );
+      final variantMatch = variantRegex.firstMatch(body);
+      if (variantMatch != null) {
+        price = double.tryParse(variantMatch.group(1)!.replaceAll(',', '.'));
+      }
+
+      // Fallback: any "price":"... TL" pattern
+      if (price == null || price <= 0) {
+        final priceMatch = RegExp(r'"price":"(\d+(?:[.,]\d+)?)\s*(?:TL|₺)"').firstMatch(body);
+        if (priceMatch != null) {
+          price = double.tryParse(priceMatch.group(1)!.replaceAll(',', '.'));
+        }
+      }
+
+      if (price != null && price > 0) {
+        return ScrapedProduct(name: name, price: price, currency: 'TRY');
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  ScrapedProduct? _extractFromMetaTags(html_dom.Document document, Uri url) {
+    String? name;
+    for (final sel in [
+      'meta[property="og:title"]',
+      'meta[name="twitter:title"]',
+      'meta[name="title"]',
+      'meta[property="product:name"]',
+    ]) {
+      final el = document.querySelector(sel);
+      if (el != null) {
+        final content = el.attributes['content']?.trim();
+        if (content != null && content.length > 2) {
+          name = content.replaceAll(RegExp(r'\s+'), ' ').trim();
+          break;
+        }
+      }
+    }
+
+    (double, String)? priceResult;
+    for (final sel in [
+      'meta[property="product:price:amount"]',
+      'meta[property="og:price:amount"]',
+      'meta[name="twitter:data1"]',
+      '[itemprop="price"]',
+    ]) {
+      final el = document.querySelector(sel);
+      if (el != null) {
+        final priceText = el.attributes['content'] ?? el.text.trim();
+        priceResult = parsePrice(priceText);
+        if (priceResult != null) break;
+      }
+    }
+
+    if (name != null && priceResult != null) {
+      return ScrapedProduct(
+        name: name,
+        imageUrl: _extractImageUrl(document, url),
+        price: priceResult.$1,
+        currency: priceResult.$2,
+      );
+    }
+    return null;
+  }
+
   String? _extractName(html_dom.Document document) {
     final selectors = [
-      'meta[property="og:title"]',
       'h1.proName',
       '[itemprop="name"]',
       '.proName',
+      'h1.product-name',
+      'h1',
+      '.product-title',
     ];
 
     for (final selector in selectors) {
       final element = document.querySelector(selector);
       if (element != null) {
-        final content = element.attributes['content'] ?? element.text.trim();
-        if (content.isNotEmpty) return content;
+        final content = element.text.trim();
+        if (content.isNotEmpty && content.length > 2) {
+          return content.replaceAll(RegExp(r'\s+'), ' ').trim();
+        }
       }
     }
     return null;
@@ -67,45 +182,60 @@ class N11Scraper extends BaseScraper {
 
   (double, String)? _extractPrice(html_dom.Document document) {
     final selectors = [
-      'meta[property="product:price:amount"]',
+      '.newPrice ins',
+      '.newPrice',
       '[itemprop="price"]',
-      '.newPrice ins', // N11 specific: the discounted price is usually inside an <ins> tag within .newPrice
-      '.newPrice', // Fallback to full newPrice container if ins is not there
       '#productPrice',
       '.unf-p-box--price',
+      '.priceContainer',
+      '.price',
     ];
 
+    final candidates = <html_dom.Element>[];
+    final seen = <String>{};
     for (final selector in selectors) {
       final elements = document.querySelectorAll(selector);
-      if (elements.isNotEmpty) {
-        // Prefer the last element if multiple (sometimes there's a list price and a sale price)
-        // or just use the first if it's the exact specific selector
-        final element = selector == '.newPrice ins' || selector == '[itemprop="price"]' 
-            ? elements.first 
-            : elements.last;
-            
-        final priceText = element.attributes['content'] ?? element.text.trim();
-        final parsed = parsePrice(priceText);
-        if (parsed != null) return parsed;
+      for (final element in elements) {
+        final text = element.attributes['content'] ?? element.text.trim();
+        if (text.isNotEmpty && !seen.contains(text)) {
+          seen.add(text);
+          candidates.add(element);
+        }
       }
     }
-    return null;
+
+    return findBestPrice(candidates);
   }
 
   String? _extractImageUrl(html_dom.Document document, Uri url) {
     final selectors = [
       'meta[property="og:image"]',
+      'meta[property="og:image:secure_url"]',
+      'meta[name="twitter:image"]',
       '[itemprop="image"]',
       '.product-img img',
       '.detailPhotoImg img',
+      '.product-image img',
+      '.main-product-image img',
+      '.gallery-image img',
+    ];
+
+    final attributePriority = [
+      'content',
+      'data-src',
+      'data-original',
+      'src',
     ];
 
     for (final selector in selectors) {
-      final element = document.querySelector(selector);
-      if (element != null) {
-        final imageUrl = element.attributes['content'] ?? element.attributes['src'];
-        if (imageUrl != null && imageUrl.isNotEmpty) {
-          return makeAbsoluteUrl(imageUrl, url);
+      final elements = document.querySelectorAll(selector);
+      for (final element in elements) {
+        for (final attr in attributePriority) {
+          final raw = element.attributes[attr];
+          if (raw != null && raw.trim().isNotEmpty) {
+            final cleaned = cleanAndNormalizeImageUrl(raw, url);
+            if (cleaned != null) return cleaned;
+          }
         }
       }
     }

@@ -1,10 +1,13 @@
 # Fiyat Takip
 
-Kişisel kullanım için farklı e-ticaret sitelerinden ürün fiyatlarını takip eden Flutter uygulaması. Tüm veri cihazda saklanır, arka planda otomatik fiyat kontrolü yapılır.
+Kişisel kullanım için **50'den fazla e-ticaret sitesinden** ürün fiyatlarını otomatik takip eden Flutter uygulaması. Tüm veri cihazda saklanır, arka planda otomatik fiyat kontrolü yapılır.
+
+Desteklenen sitelerden bazıları: **Trendyol, Hepsiburada, Amazon, N11, LC Waikiki, MediaMarkt, Nike, Mavi, Defacto, Koton, IKEA, Carrefoursa, Migros, Şok Market, Gratis, Rossmann, Flo, Pazarama, eBay, Walmart** ve daha fazlası.
 
 ## Özellikler
 
-- **Çoklu Site Desteği**: Trendyol, Hepsiburada, N11 ve diğer siteler
+- **50+ Site Desteği**: Trendyol, Hepsiburada, N11, Amazon, LC Waikiki, Nike, Mavi ve diğer tüm siteler
+- **Akıllı Scraping**: HTTP → Puppeteer (Chrome) → WebView (gerçek mobil tarayıcı) şeklinde üç kademeli fallback zinciri
 - **Otomatik Fiyat Takibi**: Arka planda periyodik fiyat kontrolü
 - **Fiyat Düşüş Bildirimleri**: Fiyat düştüğünde anlık bildirim
 - **Fiyat Geçmişi Grafikleri**: Ürün fiyatlarının zaman içindeki değişimi
@@ -12,6 +15,29 @@ Kişisel kullanım için farklı e-ticaret sitelerinden ürün fiyatlarını tak
 - **Veri Yedekleme**: JSON formatında export/import desteği
 - **Hedef Fiyat Belirleme**: İstediğiniz fiyata ulaşıldığında bildirim
 - **Ürün Gruplama**: Aynı ürünün farklı sitelerdeki fiyatlarını karşılaştırma
+- **Grup Karşılaştırma**: En ucuz ürünü ⭐ rozeti ile vurgulama, site renk kodları
+- **Canlı Arama & Filtreleme**: Ürün adı, site adı ve etiketlere göre anında filtreleme
+- **Ürün Düzenleme**: Hedef fiyat, notlar ve grup ataması düzenlenebilir
+- **Görsel Scraping**: Ürün görsellerini otomatik çekme (webp, jpg, png formatları)
+
+## Scraping Mimarisi
+
+Uygulama 3 kademeli bir scraping zinciri kullanır:
+
+```
+Site-specific Scraper → Generic HTML Scraper → Smart Fallback (Puppeteer) → WebView
+```
+
+1. **Site-specific scrapers**: Her site için özel yazılmış scraper (Trendyol, Hepsiburada, N11, LCW, Nike, Mavi vb.)
+2. **Generic HTML Scraper**: HTTP istekleriyle genel HTML parsing (JSON-LD, meta tag, DOM seçiciler)
+3. **Smart Fallback Scraper**: HTTP başarısız olursa Puppeteer (headless Chrome) dener
+4. **WebView Scraper**: Son çare olarak gerçek mobil tarayıcı (Cloudflare/Akamai korumalı siteleri geçer)
+
+### Desteklenen Siteler (31/50 HTTP ile çalışır)
+
+Hepsiburada, N11, LC Waikiki, Nike, Mavi, Şok Market, Defacto, Carrefoursa, MediaMarkt, Vatan Bilgisayar, IKEA, Migros, Koton, Mango, Puma, eBay, Walmart, Flo, Pazarama, Dr, Kitap Yurdu, Gratis, Rossmann, Atasun Optik, Madame Coco, English Home, Karaca, Bizim Toptan, İdefix, Farmasi, Amazon
+
+Cloudflare korumalı siteler (Trendyol, Teknosa vb.) Flutter WebView ile telefonda çalışır.
 
 ## Teknoloji Stack
 
@@ -19,7 +45,7 @@ Kişisel kullanım için farklı e-ticaret sitelerinden ürün fiyatlarını tak
 |--------|-----------|
 | State Management | Riverpod |
 | Veritabanı | Drift (SQLite) |
-| Scraping | http, html, webview_flutter, puppeteer |
+| Scraping | http, html, puppeteer |
 | Arka Plan Görevleri | workmanager |
 | Bildirimler | flutter_local_notifications |
 | Grafikler | fl_chart |
@@ -61,14 +87,47 @@ flutter run
 ### Ürün Ekleme
 
 **Manuel Ekleme:**
-1. Ekleme ekranına gidin
+1. Ana sayfada ➕ butonuna tıklayın
 2. Ürün linkini yapıştırın
 3. Uygulama otomatik ürün bilgilerini çeker
+4. İsteğe bağlı: hedef fiyat, not ekleyin
+5. "Ürün Ekle" butonuna tıklayın
 
 **Paylaşımdan Ekleme:**
 1. Tarayıcıda veya uygulamada "Paylaş" seçeneğini kullanın
 2. Fiyat Takip uygulamasını seçin
 3. Link otomatik olarak ürün ekleme ekranına yönlendirilir
+
+### Ürün Gruplama
+
+Aynı ürünün farklı sitelerdeki fiyatlarını karşılaştırmak için grupları kullanın.
+
+**Grup Oluşturma:**
+1. Ana sayfada 📁 (Gruplarım) butonuna tıklayın
+2. ➕ "Grup Oluştur" butonuna tıklayın
+3. Grup adını girin (örn: "Sony WH-1000XM5")
+
+**Ürünü Gruba Ekleme:**
+- **Yeni ürün eklerken**: Grup karşılaştırma sayfasında "Link Ekle" butonunu kullanın
+- **Mevcut ürünü düzenlerken**: Ürün detay → Düzenle → Grup seç
+
+**Grup Karşılaştırma:**
+- Tüm ürünler aynı ekranda listelenir
+- ⭐ **En Ucuz** rozeti en düşük fiyatlı ürünü vurgular
+- 🟠🔵🔴 Renkli noktalar siteyi belirtir (Trendyol, Hepsiburada, N11)
+- 📉 Yeşil badge fiyat düşüş yüzdesini gösterir
+- 🔗 Her ürün için site linkine tıklayabilirsiniz
+- 🔍 Grup içinde arama yapabilirsiniz
+
+### Arama & Filtreleme
+
+**Ana Sayfa:**
+- Ürün adı, site adı veya etiketlere göre anında arama
+- 🔧 Filtre → "Sadece İndirimleri Göster"
+- Aktif filtre chip olarak gösterilir, ✕ ile kaldırılır
+
+**İndirimler Sayfası:**
+- 🔍 Arama diyalogu ile indirimli ürünlerde arama
 
 ### Fiyat Takibi
 
@@ -105,18 +164,20 @@ Hedef fiyat belirlediyseniz ve bu fiyata ulaşıldığında öncelikli bildirim 
 ```
 lib/
 ├── core/
-│   ├── database/          # Drift veritabanı ve tablolar
-│   ├── background/        # Workmanager entegrasyonu
-│   ├── notifications/      # Local notification servisi
-│   └── providers/         # Riverpod dependency injection
+│   ├── database/           # Drift veritabanı ve tablolar (SQLite)
+│   ├── background/         # Workmanager ile arka plan fiyat kontrolü
+│   ├── notifications/      # Flutter local notification servisi
+│   ├── localization/       # Çoklu dil desteği (EN/TR)
+│   ├── theme/              # Material 3 tema konfigürasyonu
+│   └── providers/          # Riverpod dependency injection
 ├── features/
 │   ├── products/
-│   │   ├── domain/        # Entity ve repository arayüzleri
-│   │   ├── data/          # Scrapers ve repository implementasyonları
-│   │   └── presentation/ # UI katmanı
-│   ├── groups/           # Ürün grupları
-│   └── settings/         # Ayarlar ekranı
-└── shared/               # Ortak widget'lar
+│   │   ├── domain/         # Entity (Product, PriceHistory, ProductGroup)
+│   │   ├── data/           # Scrapers, repository, data source
+│   │   └── presentation/  # Ekranlar, provider'lar, widget'lar
+│   ├── groups/             # Grup karşılaştırma ve grup listesi
+│   └── settings/           # Ayarlar, yedekleme, dil seçimi
+└── shared/                 # Ortak widget'lar (ProductCard, AppBar, EmptyState)
 ```
 
 ## Site Scraping
@@ -128,9 +189,9 @@ Uygulama **genel amaçlı** bir scraping sistemidir - sadece belirli siteler iç
 **Herhangi bir URL eklendiğinde sistem otomatik olarak:**
 
 1. **Site-Specific Scraper Kontrolü**
-   - Trendyol → TrendyolScraper (optimize edilmiş)
-   - Hepsiburada → HepsiburadaScraper (optimize edilmiş)
-   - N11 → N11Scraper (optimize edilmiş)
+   - Trendyol → TrendyolScraper (HTTP tabanlı, optimize edilmiş)
+   - Hepsiburada → HepsiburadaScraper (Puppeteer tabanlı, anti-bot bypass)
+   - N11 → N11Scraper (Puppeteer tabanlı, anti-bot bypass)
    - Diğer tanımlı siteler için özel scraper'lar
 
 2. **Puppeteer Fallback** (Tüm siteler için)
@@ -146,15 +207,18 @@ Uygulama **genel amaçlı** bir scraping sistemidir - sadece belirli siteler iç
 ### Desteklenen Siteler
 
 **Doğrudan Optimize Edilmiş:**
-- ✅ Trendyol
-- ✅ Hepsiburada  
-- ✅ N11
+- ✅ Trendyol (HTTP tabanlı, hızlı)
+- ✅ Hepsiburada (Puppeteer tabanlı, anti-bot bypass)  
+- ✅ N11 (Puppeteer tabanlı, anti-bot bypass)
 
 **Puppeteer ile Otomatik Desteklenen:**
 - ✅ Amazon
 - ✅ AliExpress
 - ✅ eBay
 - ✅ Diğer tüm e-ticaret siteleri
+
+**Desteklenmeyen Siteler:**
+- ❌ Sahibinden.com (Çok güçlü anti-bot koruması nedeniyle scraping mümkün değil)
 
 ### Kullanım Örnekleri
 
@@ -175,7 +239,8 @@ final trendyolUrl = 'https://www.trendyol.com/product-url';
 ### Scraping Hiyerarşisi
 
 1. **Site-Specific Scrapers**: Her site için optimize edilmiş scraper'lar
-   - Trendyol, Hepsiburada, N11 için özel implementasyonlar
+   - Trendyol için HTTP tabanlı (hızlı)
+   - Hepsiburada ve N11 için Puppeteer tabanlı (anti-bot bypass)
    - Daha hızlı ve verimli çalışır
 
 2. **Puppeteer (Headless Chrome)**: Genel amaçlı güçlü scraper
@@ -184,12 +249,9 @@ final trendyolUrl = 'https://www.trendyol.com/product-url';
    - JSON-LD, meta tags ve DOM selector'ları ile data extraction
    - Cookie consent popup'larını otomatik kapatma
    - Gerçekçi browser simulation (user agent, viewport, headers)
+   - Görsel URL çıkarma (webp, jpg, png formatları)
 
-3. **WebView Scraping**: Flutter WebView ile JavaScript execution
-   - Uygulama içinde web tabanlı scraping
-   - Puppeteer'a alternatif
-
-4. **Generic HTML Scraper**: Fallback yöntem
+3. **Generic HTML Scraper**: Fallback yöntem
    - Bilinmeyen siteler için genel scraping
    - Standart HTML parsing teknikleri
 
@@ -204,15 +266,17 @@ Puppeteer scraper modern e-ticaret sitelerinde başarılı şekilde çalışmakt
   - JSON-LD (en güvenilir)
   - Meta tags
   - DOM selector'lar
-  - Initial state data
+  - @graph yapısı desteği
+- **Görsel Scraping**: webp, jpg, png formatları için kapsamlı seçiciler
+- **Hibrit Yaklaşım**: JSON-LD ve DOM scraping kombinasyonu
 
 ### Test Edilen Siteler
 
-Aşağıdaki sitelerde Puppeteer scraper başarıyla test edilmiştir:
+Aşağıdaki sitelerde scraping başarıyla test edilmiştir:
 
-- ✅ **Trendyol**: JSON-LD data extraction, price/name alımı başarılı
-- ✅ **Hepsiburada**: JSON-LD data extraction, product name alımı başarılı
-- ✅ **N11**: JSON-LD data extraction, product name alımı başarılı
+- ✅ **Trendyol**: HTTP scraping, JSON-LD data extraction, price/name/görsel alımı başarılı
+- ✅ **Hepsiburada**: Puppeteer scraping, JSON-LD data extraction, price/name/görsel alımı başarılı
+- ✅ **N11**: Puppeteer scraping, JSON-LD data extraction, price/name/görsel alımı başarılı
 
 ### Yeni Site Ekleme
 
@@ -240,9 +304,6 @@ dart run test_scrapers.dart
 
 # Puppeteer (headless Chrome) scraping testi
 dart run test_scrapers_puppeteer.dart
-
-# Flutter WebView scraping testi (uygulama içinde çalışır)
-# test_scrapers_webview.dart dosyasına bakın
 ```
 
 Bu test script'leri scraping stratejilerini geliştirmek ve debug etmek için kullanılabilir.
@@ -279,23 +340,23 @@ dart format .
 
 ## Sınırlamalar
 
-- Backend bulut senkronizasyonu yok
+- Backend bulut senkronizasyonu yok (tüm veri cihazda saklanır)
 - Cihazlar arası otomatik senkronizasyon yok
 - Kullanıcı hesabı/giriş sistemi yok
-- iOS'de arka plan çalışma garantisi yok
+- iOS'de arka plan çalışma garantisi yok (BGAppRefreshTask best-effort)
+- Arşivleme özelliği kaldırıldı (ürünler ya aktiftir ya silinir)
 
 ## Gelecek Özellikler
 
 - [ ] WebView scraper'lar için detaylı test
 - [ ] Farklı ülke siteleri için desteği genişletme
-- [ ] Fiyat trend analizi
+- [ ] Fiyat trend analizi (30/90 günlük grafikler)
 - [ ] Birden fazla cihaz senkronizasyonu
-- [ ] Widget desteği
+- [ ] Widget desteği (iOS/Android ana ekran widget'ı)
+- [ ] Karanlık tema iyileştirmeleri
 
 ## Lisans
 
 Bu proje kişisel kullanım için geliştirilmiştir.
-
-## İletişim
 
 Sorular ve öneriler için GitHub issues kullanabilirsiniz.

@@ -6,16 +6,14 @@ abstract class ProductRepository {
   // Product CRUD operations
   Future<List<Product>> getAllProducts();
   Future<List<Product>> getActiveProducts();
-  Future<List<Product>> getArchivedProducts();
   Future<Product?> getProductById(String id);
   Future<Product> addProduct(Product product);
   Future<Product> updateProduct(Product product);
   Future<void> deleteProduct(String id);
-  Future<void> archiveProduct(String id);
-  Future<void> unarchiveProduct(String id);
+
 
   // Scraping operation - adds a product by scraping the given URL
-  Future<Product> addProductFromUrl(String productUrl, {double? targetPrice, String? notes});
+  Future<Product> addProductFromUrl(String productUrl, {double? targetPrice, String? notes, String? groupId});
 
   // Price history operations
   Future<List<PriceHistoryEntry>> getPriceHistory(String productId);

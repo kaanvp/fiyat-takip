@@ -6,7 +6,10 @@ import '../../features/products/data/scrapers/impl/trendyol_scraper.dart';
 import '../../features/products/data/scrapers/impl/hepsiburada_scraper.dart';
 import '../../features/products/data/scrapers/impl/n11_scraper.dart';
 import '../../features/products/data/scrapers/impl/generic_html_scraper.dart';
-import '../../features/products/data/scrapers/impl/webview_scraper.dart';
+import '../../features/products/data/scrapers/impl/lcw_scraper.dart';
+import '../../features/products/data/scrapers/impl/nike_scraper.dart';
+import '../../features/products/data/scrapers/impl/mavi_scraper.dart';
+import '../../features/products/data/scrapers/impl/smart_fallback_scraper.dart';
 import '../database/database.dart';
 import '../notifications/notification_service.dart';
 import 'package:uuid/uuid.dart';
@@ -61,13 +64,17 @@ class BackgroundService {
     
     final database = AppDatabase.create();
     
-    // Initialize scrapers
+    // Initialize scrapers - exclude WebViewScraper as it requires Flutter UI
     final scrapers = [
       TrendyolScraper(),
       HepsiburadaScraper(),
       N11Scraper(),
+      LcwScraper(),
+      NikeScraper(),
+      MaviScraper(),
+      SmartFallbackScraper(),
       GenericHtmlScraper(),
-      WebViewScraper(),
+      // WebViewScraper is excluded - doesn't work in background isolate
     ];
     
     final scraperRegistry = SiteScraperRegistry(scrapers);
@@ -86,10 +93,14 @@ class BackgroundService {
     // Get all active products
     final products = await repository.getActiveProducts();
     
+    int successCount = 0;
+    int failureCount = 0;
+    
     // Check each product
     for (final product in products) {
       try {
         final updatedProduct = await repository.updateProductPrice(product.id);
+        successCount++;
         
         // Check if price dropped
         if (updatedProduct.currentPrice < updatedProduct.initialPrice) {
@@ -123,11 +134,16 @@ class BackgroundService {
           }
         }
       } catch (e) {
+        failureCount++;
         // Log error but continue with other products
         // ignore: avoid_print
         print('Error checking product ${product.id}: $e');
       }
     }
+    
+    // Log summary
+    // ignore: avoid_print
+    print('Price check completed: $successCount succeeded, $failureCount failed');
     
     await database.close();
   }

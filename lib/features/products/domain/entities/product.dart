@@ -15,7 +15,6 @@ class Product extends Equatable {
   final DateTime addedAt;
   final DateTime? lastCheckedAt;
   final CheckStatus lastCheckStatus;
-  final bool isArchived;
   final String? notes;
   final List<String> tags;
   final int? notifyThresholdPercent;
@@ -35,7 +34,6 @@ class Product extends Equatable {
     required this.addedAt,
     this.lastCheckedAt,
     required this.lastCheckStatus,
-    required this.isArchived,
     this.notes,
     required this.tags,
     this.notifyThresholdPercent,
@@ -56,7 +54,6 @@ class Product extends Equatable {
     DateTime? addedAt,
     DateTime? lastCheckedAt,
     CheckStatus? lastCheckStatus,
-    bool? isArchived,
     String? notes,
     List<String>? tags,
     int? notifyThresholdPercent,
@@ -76,7 +73,6 @@ class Product extends Equatable {
       addedAt: addedAt ?? this.addedAt,
       lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
       lastCheckStatus: lastCheckStatus ?? this.lastCheckStatus,
-      isArchived: isArchived ?? this.isArchived,
       notes: notes ?? this.notes,
       tags: tags ?? this.tags,
       notifyThresholdPercent: notifyThresholdPercent ?? this.notifyThresholdPercent,
@@ -132,7 +128,7 @@ class Product extends Equatable {
   }
 
   double get priceChange => currentPrice - initialPrice;
-  double get priceChangePercent => ((currentPrice - initialPrice) / initialPrice) * 100;
+  double get priceChangePercent => ((initialPrice - currentPrice) / initialPrice) * 100;
   bool get hasPriceDrop => currentPrice < initialPrice;
 
   @override
@@ -150,7 +146,6 @@ class Product extends Equatable {
         addedAt,
         lastCheckedAt,
         lastCheckStatus,
-        isArchived,
         notes,
         tags,
         notifyThresholdPercent,

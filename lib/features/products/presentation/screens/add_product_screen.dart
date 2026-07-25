@@ -8,10 +8,12 @@ import '../../presentation/providers/product_providers.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final String? initialUrl;
+  final String? groupId;
 
   const AddProductScreen({
     super.key,
     this.initialUrl,
+    this.groupId,
   });
 
   @override
@@ -274,6 +276,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         url,
         targetPrice: targetPrice,
         notes: notes.isNotEmpty ? notes : null,
+        groupId: widget.groupId,
       );
 
       if (!mounted) return;
@@ -285,11 +288,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         SnackBar(content: Text(l10n.translate('productAddedSuccess'))),
       );
 
-      // Refresh products list and navigate back
+      // Refresh products list and group products if applicable
       ref.invalidate(productsListProvider);
+      if (widget.groupId != null) {
+        ref.invalidate(productsByGroupProvider(widget.groupId!));
+      }
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
-          context.go('/home');
+          if (widget.groupId != null) {
+            context.go('/group/${widget.groupId}');
+          } else {
+            context.go('/home');
+          }
         }
       });
     } catch (e) {

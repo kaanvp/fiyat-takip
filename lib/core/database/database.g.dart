@@ -350,21 +350,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   ).withConverter<CheckStatus>($ProductsTable.$converterlastCheckStatus);
-  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
-    'isArchived',
-  );
-  @override
-  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
-    'is_archived',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("is_archived" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
   static const VerificationMeta _notesMeta = const VerificationMeta('notes');
   @override
   late final GeneratedColumn<String> notes = GeneratedColumn<String>(
@@ -422,7 +407,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     addedAt,
     lastCheckedAt,
     lastCheckStatus,
-    isArchived,
     notes,
     tags,
     notifyThresholdPercent,
@@ -540,12 +524,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         ),
       );
     }
-    if (data.containsKey('is_archived')) {
-      context.handle(
-        _isArchivedMeta,
-        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
-      );
-    }
     if (data.containsKey('notes')) {
       context.handle(
         _notesMeta,
@@ -630,10 +608,6 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
           data['${effectivePrefix}last_check_status'],
         )!,
       ),
-      isArchived: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}is_archived'],
-      )!,
       notes: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
@@ -680,7 +654,6 @@ class Product extends DataClass implements Insertable<Product> {
   final DateTime addedAt;
   final DateTime? lastCheckedAt;
   final CheckStatus lastCheckStatus;
-  final bool isArchived;
   final String? notes;
   final List<String> tags;
   final int? notifyThresholdPercent;
@@ -699,7 +672,6 @@ class Product extends DataClass implements Insertable<Product> {
     required this.addedAt,
     this.lastCheckedAt,
     required this.lastCheckStatus,
-    required this.isArchived,
     this.notes,
     required this.tags,
     this.notifyThresholdPercent,
@@ -731,7 +703,6 @@ class Product extends DataClass implements Insertable<Product> {
         $ProductsTable.$converterlastCheckStatus.toSql(lastCheckStatus),
       );
     }
-    map['is_archived'] = Variable<bool>(isArchived);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
@@ -768,7 +739,6 @@ class Product extends DataClass implements Insertable<Product> {
           ? const Value.absent()
           : Value(lastCheckedAt),
       lastCheckStatus: Value(lastCheckStatus),
-      isArchived: Value(isArchived),
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
@@ -803,7 +773,6 @@ class Product extends DataClass implements Insertable<Product> {
       lastCheckStatus: serializer.fromJson<CheckStatus>(
         json['lastCheckStatus'],
       ),
-      isArchived: serializer.fromJson<bool>(json['isArchived']),
       notes: serializer.fromJson<String?>(json['notes']),
       tags: serializer.fromJson<List<String>>(json['tags']),
       notifyThresholdPercent: serializer.fromJson<int?>(
@@ -829,7 +798,6 @@ class Product extends DataClass implements Insertable<Product> {
       'addedAt': serializer.toJson<DateTime>(addedAt),
       'lastCheckedAt': serializer.toJson<DateTime?>(lastCheckedAt),
       'lastCheckStatus': serializer.toJson<CheckStatus>(lastCheckStatus),
-      'isArchived': serializer.toJson<bool>(isArchived),
       'notes': serializer.toJson<String?>(notes),
       'tags': serializer.toJson<List<String>>(tags),
       'notifyThresholdPercent': serializer.toJson<int?>(notifyThresholdPercent),
@@ -851,7 +819,6 @@ class Product extends DataClass implements Insertable<Product> {
     DateTime? addedAt,
     Value<DateTime?> lastCheckedAt = const Value.absent(),
     CheckStatus? lastCheckStatus,
-    bool? isArchived,
     Value<String?> notes = const Value.absent(),
     List<String>? tags,
     Value<int?> notifyThresholdPercent = const Value.absent(),
@@ -872,7 +839,6 @@ class Product extends DataClass implements Insertable<Product> {
         ? lastCheckedAt.value
         : this.lastCheckedAt,
     lastCheckStatus: lastCheckStatus ?? this.lastCheckStatus,
-    isArchived: isArchived ?? this.isArchived,
     notes: notes.present ? notes.value : this.notes,
     tags: tags ?? this.tags,
     notifyThresholdPercent: notifyThresholdPercent.present
@@ -909,9 +875,6 @@ class Product extends DataClass implements Insertable<Product> {
       lastCheckStatus: data.lastCheckStatus.present
           ? data.lastCheckStatus.value
           : this.lastCheckStatus,
-      isArchived: data.isArchived.present
-          ? data.isArchived.value
-          : this.isArchived,
       notes: data.notes.present ? data.notes.value : this.notes,
       tags: data.tags.present ? data.tags.value : this.tags,
       notifyThresholdPercent: data.notifyThresholdPercent.present
@@ -937,7 +900,6 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('addedAt: $addedAt, ')
           ..write('lastCheckedAt: $lastCheckedAt, ')
           ..write('lastCheckStatus: $lastCheckStatus, ')
-          ..write('isArchived: $isArchived, ')
           ..write('notes: $notes, ')
           ..write('tags: $tags, ')
           ..write('notifyThresholdPercent: $notifyThresholdPercent, ')
@@ -961,7 +923,6 @@ class Product extends DataClass implements Insertable<Product> {
     addedAt,
     lastCheckedAt,
     lastCheckStatus,
-    isArchived,
     notes,
     tags,
     notifyThresholdPercent,
@@ -984,7 +945,6 @@ class Product extends DataClass implements Insertable<Product> {
           other.addedAt == this.addedAt &&
           other.lastCheckedAt == this.lastCheckedAt &&
           other.lastCheckStatus == this.lastCheckStatus &&
-          other.isArchived == this.isArchived &&
           other.notes == this.notes &&
           other.tags == this.tags &&
           other.notifyThresholdPercent == this.notifyThresholdPercent &&
@@ -1005,7 +965,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<DateTime> addedAt;
   final Value<DateTime?> lastCheckedAt;
   final Value<CheckStatus> lastCheckStatus;
-  final Value<bool> isArchived;
   final Value<String?> notes;
   final Value<List<String>> tags;
   final Value<int?> notifyThresholdPercent;
@@ -1025,7 +984,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.addedAt = const Value.absent(),
     this.lastCheckedAt = const Value.absent(),
     this.lastCheckStatus = const Value.absent(),
-    this.isArchived = const Value.absent(),
     this.notes = const Value.absent(),
     this.tags = const Value.absent(),
     this.notifyThresholdPercent = const Value.absent(),
@@ -1046,7 +1004,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     required DateTime addedAt,
     this.lastCheckedAt = const Value.absent(),
     required CheckStatus lastCheckStatus,
-    this.isArchived = const Value.absent(),
     this.notes = const Value.absent(),
     required List<String> tags,
     this.notifyThresholdPercent = const Value.absent(),
@@ -1076,7 +1033,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<DateTime>? addedAt,
     Expression<DateTime>? lastCheckedAt,
     Expression<String>? lastCheckStatus,
-    Expression<bool>? isArchived,
     Expression<String>? notes,
     Expression<String>? tags,
     Expression<int>? notifyThresholdPercent,
@@ -1097,7 +1053,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (addedAt != null) 'added_at': addedAt,
       if (lastCheckedAt != null) 'last_checked_at': lastCheckedAt,
       if (lastCheckStatus != null) 'last_check_status': lastCheckStatus,
-      if (isArchived != null) 'is_archived': isArchived,
       if (notes != null) 'notes': notes,
       if (tags != null) 'tags': tags,
       if (notifyThresholdPercent != null)
@@ -1121,7 +1076,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Value<DateTime>? addedAt,
     Value<DateTime?>? lastCheckedAt,
     Value<CheckStatus>? lastCheckStatus,
-    Value<bool>? isArchived,
     Value<String?>? notes,
     Value<List<String>>? tags,
     Value<int?>? notifyThresholdPercent,
@@ -1142,7 +1096,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       addedAt: addedAt ?? this.addedAt,
       lastCheckedAt: lastCheckedAt ?? this.lastCheckedAt,
       lastCheckStatus: lastCheckStatus ?? this.lastCheckStatus,
-      isArchived: isArchived ?? this.isArchived,
       notes: notes ?? this.notes,
       tags: tags ?? this.tags,
       notifyThresholdPercent:
@@ -1196,9 +1149,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
         $ProductsTable.$converterlastCheckStatus.toSql(lastCheckStatus.value),
       );
     }
-    if (isArchived.present) {
-      map['is_archived'] = Variable<bool>(isArchived.value);
-    }
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
@@ -1237,7 +1187,6 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('addedAt: $addedAt, ')
           ..write('lastCheckedAt: $lastCheckedAt, ')
           ..write('lastCheckStatus: $lastCheckStatus, ')
-          ..write('isArchived: $isArchived, ')
           ..write('notes: $notes, ')
           ..write('tags: $tags, ')
           ..write('notifyThresholdPercent: $notifyThresholdPercent, ')
@@ -1838,7 +1787,6 @@ typedef $$ProductsTableCreateCompanionBuilder =
       required DateTime addedAt,
       Value<DateTime?> lastCheckedAt,
       required CheckStatus lastCheckStatus,
-      Value<bool> isArchived,
       Value<String?> notes,
       required List<String> tags,
       Value<int?> notifyThresholdPercent,
@@ -1860,7 +1808,6 @@ typedef $$ProductsTableUpdateCompanionBuilder =
       Value<DateTime> addedAt,
       Value<DateTime?> lastCheckedAt,
       Value<CheckStatus> lastCheckStatus,
-      Value<bool> isArchived,
       Value<String?> notes,
       Value<List<String>> tags,
       Value<int?> notifyThresholdPercent,
@@ -1989,11 +1936,6 @@ class $$ProductsTableFilterComposer
   get lastCheckStatus => $composableBuilder(
     column: $table.lastCheckStatus,
     builder: (column) => ColumnWithTypeConverterFilters(column),
-  );
-
-  ColumnFilters<bool> get isArchived => $composableBuilder(
-    column: $table.isArchived,
-    builder: (column) => ColumnFilters(column),
   );
 
   ColumnFilters<String> get notes => $composableBuilder(
@@ -2135,11 +2077,6 @@ class $$ProductsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<bool> get isArchived => $composableBuilder(
-    column: $table.isArchived,
-    builder: (column) => ColumnOrderings(column),
-  );
-
   ColumnOrderings<String> get notes => $composableBuilder(
     column: $table.notes,
     builder: (column) => ColumnOrderings(column),
@@ -2241,11 +2178,6 @@ class $$ProductsTableAnnotationComposer
         column: $table.lastCheckStatus,
         builder: (column) => column,
       );
-
-  GeneratedColumn<bool> get isArchived => $composableBuilder(
-    column: $table.isArchived,
-    builder: (column) => column,
-  );
 
   GeneratedColumn<String> get notes =>
       $composableBuilder(column: $table.notes, builder: (column) => column);
@@ -2349,7 +2281,6 @@ class $$ProductsTableTableManager
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<DateTime?> lastCheckedAt = const Value.absent(),
                 Value<CheckStatus> lastCheckStatus = const Value.absent(),
-                Value<bool> isArchived = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<List<String>> tags = const Value.absent(),
                 Value<int?> notifyThresholdPercent = const Value.absent(),
@@ -2369,7 +2300,6 @@ class $$ProductsTableTableManager
                 addedAt: addedAt,
                 lastCheckedAt: lastCheckedAt,
                 lastCheckStatus: lastCheckStatus,
-                isArchived: isArchived,
                 notes: notes,
                 tags: tags,
                 notifyThresholdPercent: notifyThresholdPercent,
@@ -2391,7 +2321,6 @@ class $$ProductsTableTableManager
                 required DateTime addedAt,
                 Value<DateTime?> lastCheckedAt = const Value.absent(),
                 required CheckStatus lastCheckStatus,
-                Value<bool> isArchived = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 required List<String> tags,
                 Value<int?> notifyThresholdPercent = const Value.absent(),
@@ -2411,7 +2340,6 @@ class $$ProductsTableTableManager
                 addedAt: addedAt,
                 lastCheckedAt: lastCheckedAt,
                 lastCheckStatus: lastCheckStatus,
-                isArchived: isArchived,
                 notes: notes,
                 tags: tags,
                 notifyThresholdPercent: notifyThresholdPercent,

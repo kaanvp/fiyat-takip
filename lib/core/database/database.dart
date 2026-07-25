@@ -28,7 +28,6 @@ class Products extends Table {
   DateTimeColumn get addedAt => dateTime()();
   DateTimeColumn get lastCheckedAt => dateTime().nullable()();
   TextColumn get lastCheckStatus => text().map(const CheckStatusConverter())();
-  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   TextColumn get notes => text().nullable()();
   TextColumn get tags => text().map(const TagsConverter())();
   IntColumn get notifyThresholdPercent => integer().nullable()();
@@ -97,7 +96,19 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration {
+    return MigrationStrategy(
+      onUpgrade: (migrator, from, to) async {
+        if (from == 1) {
+          // Drop is_archived column (removed archive feature)
+          await customStatement('ALTER TABLE products DROP COLUMN is_archived');
+        }
+      },
+    );
+  }
 
   static AppDatabase create() {
     final executor = LazyDatabase(() async {
@@ -111,11 +122,7 @@ class AppDatabase extends _$AppDatabase {
   // Product queries
   Future<List<Product>> getAllProducts() => select(products).get();
   
-  Future<List<Product>> getActiveProducts() => 
-      (select(products)..where((p) => p.isArchived.equals(false))).get();
-  
-  Future<List<Product>> getArchivedProducts() => 
-      (select(products)..where((p) => p.isArchived.equals(true))).get();
+  Future<List<Product>> getActiveProducts() => select(products).get();
   
   Future<Product?> getProductById(String id) => 
       (select(products)..where((p) => p.id.equals(id))).getSingleOrNull();
@@ -125,14 +132,6 @@ class AppDatabase extends _$AppDatabase {
   
   Future<void> deleteProduct(String id) => 
       (delete(products)..where((p) => p.id.equals(id))).go();
-  
-  Future<void> archiveProduct(String id) => 
-      (update(products)..where((p) => p.id.equals(id)))
-          .write(const ProductsCompanion(isArchived: Value(true)));
-  
-  Future<void> unarchiveProduct(String id) => 
-      (update(products)..where((p) => p.id.equals(id)))
-          .write(const ProductsCompanion(isArchived: Value(false)));
 
   // Price history queries
   Future<List<PriceHistoryEntry>> getPriceHistory(String productId) => 
@@ -168,7 +167,7 @@ class AppDatabase extends _$AppDatabase {
   Future<int> getTotalProductCount() => products.count().get().then((list) => list.length);
   
   Future<int> getActiveProductCount() => 
-      (select(products)..where((p) => p.isArchived.equals(false))).get().then((list) => list.length);
+      select(products).get().then((list) => list.length);
   
   Future<int> getPriceDropCount() => 
       (select(products)..where((p) => p.currentPrice.isSmallerThan(p.initialPrice))).get().then((list) => list.length);

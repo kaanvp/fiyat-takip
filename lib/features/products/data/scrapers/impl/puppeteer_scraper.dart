@@ -1,13 +1,17 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:puppeteer/puppeteer.dart';
 import '../scraper_interface.dart';
 
 /// Puppeteer-based scraper that uses headless Chrome for JavaScript execution
-/// This can bypass Cloudflare and other modern anti-bot protections
+/// Only supported on Desktop platforms (Windows, macOS, Linux).
 class PuppeteerScraper extends ProductScraper {
   @override
   bool canHandle(Uri url) {
-    // This is a fallback scraper that can handle any site
-    // It's more resource-intensive but more reliable
+    // Puppeteer requires native Chrome binary execution & packageConfig isolates,
+    // which is not supported on Android, iOS, or Web.
+    if (kIsWeb) return false;
+    if (Platform.isAndroid || Platform.isIOS) return false;
     return true;
   }
 
@@ -110,7 +114,6 @@ class PuppeteerScraper extends ProductScraper {
         style.textContent = `[class*="modal"], [class*="overlay"], [class*="popup"], [class*="dialog"], [class*="consent"], [class*="cookie"], [id*="modal"], [id*="overlay"], [id*="popup"], [id*="consent"], [id*="cookie"], [class*="privacy"] { display: none !important; visibility: hidden !important; opacity: 0 !important; }`;
         document.head.appendChild(style);
         
-        // Try to click common cookie consent buttons
         const cookieSelectors = [
           'button[id*="cookie"]',
           'button[class*="cookie"]',
@@ -167,7 +170,7 @@ class PuppeteerScraper extends ProductScraper {
 
   Future<ScrapedProduct?> _extractProductData(Page page, Uri url) async {
     try {
-      // Strategy 1: JSON-LD (most reliable)
+      // Strategy 1: JSON-LD
       final jsonLdData = await page.evaluate('''() => {
         const scripts = document.querySelectorAll('script[type="application/ld+json"]');
         const results = [];
@@ -175,9 +178,7 @@ class PuppeteerScraper extends ProductScraper {
           try {
             const data = JSON.parse(script.textContent);
             results.push(data);
-          } catch(e) {
-            // Ignore parse errors
-          }
+          } catch(e) {}
         });
         return results;
       }''');
@@ -186,75 +187,222 @@ class PuppeteerScraper extends ProductScraper {
         try {
           final product = _parseProductFromJsonLd(scriptData);
           if (product != null) return product;
-        } catch (e) {
-          // Continue to next script
-        }
+        } catch (e) {}
       }
 
-      // Strategy 2: Meta tags
-      final metaTags = await page.evaluate('''() => {
+      // Strategy 2: Enhanced Meta tags + Global State
+      final enhancedData = await page.evaluate('''() => {
         const results = {};
-        const priceAmount = document.querySelector('meta[property="product:price:amount"]');
-        const ogTitle = document.querySelector('meta[property="og:title"]');
-        const ogImage = document.querySelector('meta[property="og:image"]');
         
-        if (priceAmount) results['price'] = priceAmount.content;
-        if (ogTitle) results['title'] = ogTitle.content;
-        if (ogImage) results['image'] = ogImage.content;
+        // Meta tags - comprehensive
+        const metaPriceSelectors = [
+          'meta[property="product:price:amount"]',
+          'meta[property="product:sale_price:amount"]',
+          'meta[property="og:price:amount"]',
+          'meta[name="twitter:data1"]',
+          '[itemprop="price"]'
+        ];
+        
+        const metaNameSelectors = [
+          'meta[property="og:title"]',
+          'meta[name="twitter:title"]',
+          'meta[name="title"]',
+          'meta[property="product:name"]',
+          '[itemprop="name"]'
+        ];
+        
+        const metaImageSelectors = [
+          'meta[property="og:image"]',
+          'meta[property="og:image:url"]',
+          'meta[name="twitter:image"]',
+          '[itemprop="image"]'
+        ];
+        
+        const metaCurrencySelectors = [
+          'meta[property="product:price:currency"]',
+          'meta[property="og:price:currency"]'
+        ];
+        
+        for (const sel of metaPriceSelectors) {
+          const el = document.querySelector(sel);
+          if (el && el.content) {
+            results['price'] = el.content;
+            break;
+          }
+        }
+        
+        for (const sel of metaNameSelectors) {
+          const el = document.querySelector(sel);
+          if (el && el.content) {
+            results['name'] = el.content;
+            break;
+          }
+        }
+        
+        for (const sel of metaImageSelectors) {
+          const el = document.querySelector(sel);
+          if (el && el.content) {
+            results['image'] = el.content;
+            break;
+          }
+        }
+        
+        for (const sel of metaCurrencySelectors) {
+          const el = document.querySelector(sel);
+          if (el && el.content) {
+            results['currency'] = el.content;
+            break;
+          }
+        }
+        
+        // Global state objects
+        try {
+          if (window.__NEXT_DATA__) results['__NEXT_DATA__'] = window.__NEXT_DATA__;
+          if (window.__INITIAL_STATE__) results['__INITIAL_STATE__'] = window.__INITIAL_STATE__;
+          if (window.__NUXT__) results['__NUXT__'] = window.__NUXT__;
+          if (window.__PRELOADED_STATE__) results['__PRELOADED_STATE__'] = window.__PRELOADED_STATE__;
+          if (window.__STATE__) results['__STATE__'] = window.__STATE__;
+          if (window.pageData) results['pageData'] = window.pageData;
+          if (window.__DATA__) results['__DATA__'] = window.__DATA__;
+          if (window.APP_DATA) results['APP_DATA'] = window.APP_DATA;
+          if (window.__APOLLO_STATE__) results['__APOLLO_STATE__'] = window.__APOLLO_STATE__;
+          if (window.product) results['product'] = window.product;
+          if (window._product) results['_product'] = window._product;
+          if (window.item) results['item'] = window.item;
+          if (window.__remixContext) results['__remixContext'] = window.__remixContext;
+        } catch(e) {}
         
         return results;
       }''');
 
-      if (metaTags['title'] != null && metaTags['price'] != null) {
-        final price = _parsePrice(metaTags['price'].toString());
+      // Try meta tags first
+      if (enhancedData['name'] != null && enhancedData['price'] != null) {
+        final price = _parsePrice(enhancedData['price'].toString());
         if (price != null) {
           return ScrapedProduct(
-            name: metaTags['title'].toString(),
-            imageUrl: metaTags['image']?.toString(),
+            name: enhancedData['name'].toString(),
+            imageUrl: enhancedData['image']?.toString(),
             price: price.$1,
-            currency: price.$2,
+            currency: enhancedData['currency']?.toString() ?? price.$2,
           );
         }
       }
 
-      // Strategy 3: DOM selectors
+      // Try global state objects
+      for (final key in ['__NEXT_DATA__', '__INITIAL_STATE__', '__NUXT__', '__PRELOADED_STATE__', '__STATE__', 'pageData', '__DATA__', 'APP_DATA', '__APOLLO_STATE__', 'product', '_product', 'item', '__remixContext']) {
+        if (enhancedData[key] != null) {
+          final product = _findProductInMap(enhancedData[key], url);
+          if (product != null) return product;
+        }
+      }
+
+      // Strategy 3: Comprehensive DOM selectors
       final domData = await page.evaluate('''() => {
         const results = {};
         
-        // Price selectors
         const priceSelectors = [
+          '[data-aut-id="itemPrice"]',
+          '[data-aut-id*="price"]',
+          '[data-aut-id*="fiyat"]',
+          '[data-qa*="price"]',
+          '[data-qa*="fiyat"]',
+          '[data-testid*="price"]',
+          '[data-testid*="fiyat"]',
+          '[data-test*="price"]',
+          '[data-test-id*="price"]',
+          '[itemprop="price"]',
+          'meta[property="product:price:amount"]',
+          'meta[property="og:price:amount"]',
+          '.newPrice ins',
+          '.newPrice',
           '.prc-dsc',
           '.prc-slg', 
           '.prc-org',
           '.prc-hp',
+          '.pdp-price',
+          '.product-price-container .current',
+          '[class*="current-price"]',
+          '[class*="sale-price"]',
+          '[class*="selling-price"]',
+          '[class*="final-price"]',
+          '[class*="special-price"]',
+          '[class*="discounted-price"]',
+          '[class*="product-price"]',
+          '[class*="price-new"]',
+          '[class*="price-box"]',
+          '[class*="price-container"]',
+          '[class*="price-tag"]',
+          '[class*="price-tag-text"]',
+          '[class*="price-display"]',
+          '[class*="price-value"]',
+          '[class*="price-text"]',
+          '[class*="price-amount"]',
+          '[class*="fiyat"]',
+          '[class*="fiyat-kutu"]',
+          '[class*="fiyat-bilgisi"]',
+          '[class*="price"]',
           '.price',
-          '.product-price',
-          '[data-testid="price"]',
-          '.current-price',
-          '.final-price',
-          '.discounted-price',
-          '.selling-price',
-          '.original-price'
+          '.fiyat',
+          '.offer-price',
+          '.display-price',
+          '.amount'
         ];
         
         priceSelectors.forEach(selector => {
           const el = document.querySelector(selector);
           if (el) {
-            results['price'] = el.textContent?.trim();
+            const text = el.content || el.textContent?.trim();
+            if (text) results['price'] = text;
           }
         });
         
-        // Name selectors
         const nameSelectors = [
+          '[data-aut-id="itemTitle"]',
+          '[data-aut-id*="title"]',
+          '[data-aut-id*="name"]',
+          '[data-qa*="title"]',
+          '[data-qa*="name"]',
+          '[data-qa="product-name"]',
+          '[data-testid*="title"]',
+          '[data-testid*="name"]',
+          '[data-testid="product-name"]',
+          '[data-test*="title"]',
+          '[data-test-id*="title"]',
+          '[data-test-id="product-name"]',
+          'h1.product-name',
+          'h1.pr-new-br',
+          'h1.proName',
+          'h1.pdp-title',
+          'h1.pro-name',
+          'h1[itemprop="name"]',
+          '[itemprop="name"]',
+          '.product-title-text',
+          '.product-name-text',
+          '.product-detail-name',
+          '.product-detail-title',
+          '.name-text',
+          '.title-text',
+          '.product-display-name',
+          '.product-header-title',
+          '.prd-title',
+          '.product-header-title',
           'h1',
-          'h2',
+          'h2.product-title',
+          'h2.product-name',
           '.product-title',
           '.product-name',
-          '[data-testid="product-title"]',
-          '.prc-nm',
-          '.prc-hd',
-          '.product-detail-title',
-          '.detail-title'
+          '[class*="product-title"]',
+          '[class*="product-name"]',
+          '[class*="productTitle"]',
+          '[class*="productName"]',
+          '[class*="item-title"]',
+          '[class*="item-name"]',
+          '[class*="itemTitle"]',
+          '[class*="itemName"]',
+          '[class*="ad-title"]',
+          '[class*="listing-title"]',
+          '[class*="title"]',
+          '[class*="heading"]'
         ];
         
         nameSelectors.forEach(selector => {
@@ -264,6 +412,57 @@ class PuppeteerScraper extends ProductScraper {
           }
         });
         
+        const imageSelectors = [
+          'meta[property="og:image"]',
+          'meta[property="og:image:url"]',
+          'meta[property="og:image:secure_url"]',
+          'meta[name="twitter:image"]',
+          '[data-aut-id="itemImage"] img',
+          '[data-aut-id="itemImage"]',
+          '[data-aut-id*="image"] img',
+          '[data-aut-id*="image"]',
+          '[data-aut-id*="photo"] img',
+          '[data-qa*="image"] img',
+          '[data-qa*="image"]',
+          '[data-testid*="image"] img',
+          '[data-testid*="image"]',
+          '[data-test*="image"] img',
+          '[itemprop="image"]',
+          'img[itemprop="image"]',
+          '[class*="gallery"] img',
+          '[class*="photo"] img',
+          '[class*="picture"] img',
+          '[class*="slider"] img',
+          '[class*="carousel"] img',
+          '[class*="product-image"] img',
+          '[class*="product-photo"] img',
+          '[class*="pdp"] img',
+          '[class*="detail"] img',
+          '[class*="hero"] img',
+          '[class*="main-image"] img',
+          '[class*="zoom"] img',
+          'img[src*="product"]',
+          'img[src*="item"]',
+          'img'
+        ];
+        
+        const imgAttrs = ["content","data-zoom-image","data-high-res","data-original","data-full","data-large","data-src","data-lazy-src","data-lazy","srcset","src"];
+        
+        for (const selector of imageSelectors) {
+          const els = document.querySelectorAll(selector);
+          for (const el of els) {
+            for (const attr of imgAttrs) {
+              const val = el.getAttribute(attr);
+              if (val && val.trim()) {
+                results['image'] = val.trim();
+                break;
+              }
+            }
+            if (results['image']) break;
+          }
+          if (results['image']) break;
+        }
+        
         return results;
       }''');
 
@@ -272,6 +471,7 @@ class PuppeteerScraper extends ProductScraper {
         if (price != null) {
           return ScrapedProduct(
             name: domData['name'].toString(),
+            imageUrl: domData['image']?.toString(),
             price: price.$1,
             currency: price.$2,
           );
@@ -279,6 +479,100 @@ class PuppeteerScraper extends ProductScraper {
       }
 
       return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  ScrapedProduct? _findProductInMap(dynamic data, Uri url) {
+    try {
+      if (data is! Map) return null;
+      
+      final nameKeys = ['name', 'title', 'productName', 'itemTitle', 'itemName', 'heading', 'subject', 'productTitle', 'listingTitle', 'adTitle'];
+      final priceKeys = ['price', 'currentPrice', 'sellingPrice', 'discountedPrice', 'salePrice', 'listingPrice', 'amount', 'itemPrice', 'cost', 'formattedPrice', 'rawPrice', 'displayPrice'];
+      
+      String? foundName;
+      for (final key in nameKeys) {
+        final value = data[key];
+        if (value is String && value.trim().length > 2) {
+          foundName = value.trim();
+          break;
+        }
+      }
+      
+      if (foundName == null) return null;
+      
+      double? foundPrice;
+      String? foundCurrency;
+      
+      for (final key in priceKeys) {
+        final value = data[key];
+        if (value != null) {
+          if (value is num && value > 0) {
+            foundPrice = value.toDouble();
+            break;
+          } else if (value is String) {
+            final parsed = _parsePrice(value);
+            if (parsed != null && parsed.$1 > 0) {
+              foundPrice = parsed.$1;
+              foundCurrency = parsed.$2;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (foundPrice == null) {
+        // Try offers object
+        final offers = data['offers'];
+        if (offers is Map) {
+          final price = offers['price'];
+          if (price is num && price > 0) {
+            foundPrice = price.toDouble();
+            foundCurrency = offers['priceCurrency']?.toString() ?? 'TRY';
+          } else if (price is String) {
+            final parsed = _parsePrice(price);
+            if (parsed != null) {
+              foundPrice = parsed.$1;
+              foundCurrency = parsed.$2;
+            }
+          }
+        }
+      }
+      
+      if (foundPrice == null || foundPrice <= 0) return null;
+      
+      String? foundImage;
+      final imageKeys = ['image', 'imageUrl', 'images', 'photo', 'photos', 'picture', 'pictures', 'itemImage', 'thumbnail', 'thumbnailUrl', 'mainImage', 'coverImage', 'media'];
+      
+      for (final key in imageKeys) {
+        final value = data[key];
+        if (value != null) {
+          if (value is String && value.trim().isNotEmpty) {
+            foundImage = value.trim();
+            break;
+          } else if (value is List && value.isNotEmpty) {
+            final first = value.first;
+            if (first is String) {
+              foundImage = first;
+              break;
+            } else if (first is Map) {
+              foundImage = first['url']?.toString() ?? first['src']?.toString();
+              if (foundImage != null) break;
+            }
+          } else if (value is Map) {
+            foundImage = value['url']?.toString() ?? value['src']?.toString();
+            if (foundImage != null) break;
+          }
+        }
+      }
+      
+      return ScrapedProduct(
+        name: foundName.replaceAll(RegExp(r'\s+'), ' ').trim(),
+        imageUrl: foundImage,
+        price: foundPrice,
+        currency: foundCurrency ?? 'TRY',
+      );
     } catch (e) {
       return null;
     }
@@ -341,14 +635,12 @@ class PuppeteerScraper extends ProductScraper {
   }
 
   (double, String)? _parsePrice(String priceText) {
-    // Remove currency symbols and extract numbers
     final cleanText = priceText.replaceAll(RegExp(r'[^\d.,]'), '');
     final normalizedText = cleanText.replaceAll(',', '.');
     final price = double.tryParse(normalizedText);
     
     if (price == null || price <= 0) return null;
     
-    // Detect currency from original text
     String currency = 'TRY';
     if (priceText.contains('\$') || priceText.contains('USD')) {
       currency = 'USD';
@@ -363,5 +655,5 @@ class PuppeteerScraper extends ProductScraper {
   String get displayName => 'Puppeteer (Headless Chrome)';
 
   @override
-  List<String> get supportedHosts => ['*']; // Fallback for all sites
+  List<String> get supportedHosts => ['*'];
 }

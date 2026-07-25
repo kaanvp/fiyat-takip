@@ -8,21 +8,37 @@ class SiteScraperRegistry {
   /// Get the appropriate scraper for the given URL
   /// Returns null if no scraper can handle this URL
   ProductScraper? getScraperForUrl(Uri url) {
-    // First try to find a specific scraper for this site
+    // 1. Site-specific scrapers (Trendyol, Hepsiburada, N11)
     for (final scraper in _scrapers) {
-      if (scraper.canHandle(url) && scraper.displayName != 'Puppeteer (Headless Chrome)') {
+      if (scraper.canHandle(url) &&
+          scraper.displayName != 'Puppeteer (Headless Chrome)' &&
+          scraper.displayName != 'Generic HTML Scraper' &&
+          scraper.displayName != 'WebView Scraper' &&
+          scraper.displayName != 'Smart Fallback Scraper') {
         return scraper;
       }
     }
     
-    // Fallback to Puppeteer if available (most reliable for modern sites)
-    final puppeteer = getScraperByDisplayName('Puppeteer (Headless Chrome)');
-    if (puppeteer != null) {
-      return puppeteer;
+    // 2. Fallback to Generic HTML Scraper (lightweight HTTP)
+    final generic = getScraperByDisplayName('Generic HTML Scraper');
+    if (generic != null) {
+      return generic;
+    }
+
+    // 3. Fallback to Smart Fallback Scraper (HTTP → Puppeteer)
+    final smart = getScraperByDisplayName('Smart Fallback Scraper');
+    if (smart != null) {
+      return smart;
+    }
+
+    // 4. Fallback to WebView Scraper (JS renderer, mobile only)
+    final webview = getScraperByDisplayName('WebView Scraper');
+    if (webview != null) {
+      return webview;
     }
     
-    // Final fallback to Generic HTML Scraper
-    return getScraperByDisplayName('Generic HTML Scraper');
+    // 4. Fallback to Puppeteer if available
+    return getScraperByDisplayName('Puppeteer (Headless Chrome)');
   }
 
   /// Check if any scraper can handle the given URL

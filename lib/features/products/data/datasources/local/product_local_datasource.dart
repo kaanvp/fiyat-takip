@@ -10,8 +10,6 @@ class ProductLocalDataSource {
   
   Future<List<Product>> getActiveProducts() => database.getActiveProducts();
   
-  Future<List<Product>> getArchivedProducts() => database.getArchivedProducts();
-  
   Future<Product?> getProductById(String id) => database.getProductById(id);
   
   Future<void> addProduct(ProductsCompanion product) => 
@@ -22,9 +20,7 @@ class ProductLocalDataSource {
   
   Future<void> deleteProduct(String id) => database.deleteProduct(id);
   
-  Future<void> archiveProduct(String id) => database.archiveProduct(id);
-  
-  Future<void> unarchiveProduct(String id) => database.unarchiveProduct(id);
+
 
   // Price history operations
   Future<List<PriceHistoryEntry>> getPriceHistory(String productId) => 

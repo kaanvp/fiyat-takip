@@ -9,6 +9,7 @@ import 'features/products/presentation/screens/home_screen.dart';
 import 'features/products/presentation/screens/price_drops_screen.dart';
 import 'features/products/presentation/screens/add_product_screen.dart';
 import 'features/products/presentation/screens/product_detail_screen.dart';
+import 'features/groups/presentation/screens/groups_screen.dart';
 import 'features/groups/presentation/screens/group_comparison_screen.dart';
 import 'features/settings/presentation/screens/settings_screen.dart';
 import 'shared/widgets/app_bars/bottom_nav_bar.dart';
@@ -46,8 +47,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/add-product',
         pageBuilder: (context, state) {
           final initialUrl = state.uri.queryParameters['url'];
+          final groupId = state.uri.queryParameters['groupId'];
           return MaterialPage(
-            child: AddProductScreen(initialUrl: initialUrl),
+            child: AddProductScreen(initialUrl: initialUrl, groupId: groupId),
           );
         },
       ),
@@ -59,6 +61,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             child: ProductDetailScreen(productId: productId),
           );
         },
+      ),
+      GoRoute(
+        path: '/groups',
+        pageBuilder: (context, state) => const MaterialPage(
+          child: GroupsScreen(),
+        ),
       ),
       GoRoute(
         path: '/group/:id',

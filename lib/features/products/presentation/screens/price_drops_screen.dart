@@ -16,6 +16,8 @@ class PriceDropsScreen extends ConsumerStatefulWidget {
 }
 
 class _PriceDropsScreenState extends ConsumerState<PriceDropsScreen> {
+  String _searchQuery = '';
+
   @override
   Widget build(BuildContext context) {
     final l10n = ref.watch(appLocalizationsProvider);
@@ -29,7 +31,7 @@ class _PriceDropsScreenState extends ConsumerState<PriceDropsScreen> {
           IconButton(
             icon: const Icon(Icons.search),
             onPressed: () {
-              // Show search
+              _showSearchDialog(context, l10n);
             },
           ),
         ],
@@ -52,13 +54,56 @@ class _PriceDropsScreenState extends ConsumerState<PriceDropsScreen> {
   }
 
   Widget _buildBody(AppLocalizations l10n, List<Product> priceDrops) {
-    if (priceDrops.isEmpty) {
-      return _buildEmptyState(l10n);
+    // Apply search filter
+    var filtered = priceDrops;
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase();
+      filtered = priceDrops.where((p) =>
+        p.name.toLowerCase().contains(query) ||
+        p.displaySiteName.toLowerCase().contains(query) ||
+        p.siteHost.toLowerCase().contains(query),
+      ).toList();
     }
-    return _buildPriceDropsList(priceDrops);
+
+    if (filtered.isEmpty) {
+      return _buildEmptyState(l10n, priceDrops.isNotEmpty);
+    }
+    return _buildPriceDropsList(filtered, l10n);
   }
 
-  Widget _buildEmptyState(AppLocalizations l10n) {
+  Widget _buildEmptyState(AppLocalizations l10n, bool hasResultsWithoutFilter) {
+    if (hasResultsWithoutFilter) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.search_off,
+                size: 48,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                l10n.translate('searchProducts'),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() => _searchQuery = '');
+                },
+                icon: const Icon(Icons.clear),
+                label: Text(l10n.translate('cancel')),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     return EmptyState(
       icon: Icons.trending_down,
       title: l10n.translate('noPriceDrops'),
@@ -66,22 +111,91 @@ class _PriceDropsScreenState extends ConsumerState<PriceDropsScreen> {
     );
   }
 
-  Widget _buildPriceDropsList(List<Product> priceDrops) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: priceDrops.length,
-      itemBuilder: (context, index) {
-        final product = priceDrops[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: ProductCard(
-            product: product,
-            onTap: () {
-              context.go('/product/${product.id}');
+  Widget _buildPriceDropsList(List<Product> priceDrops, AppLocalizations l10n) {
+    return Column(
+      children: [
+        if (_searchQuery.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${priceDrops.length} ${l10n.translate('products')}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                Chip(
+                  avatar: const Icon(Icons.search, size: 16),
+                  label: Text(_searchQuery, style: const TextStyle(fontSize: 12)),
+                  deleteIcon: const Icon(Icons.close, size: 16),
+                  onDeleted: () => setState(() => _searchQuery = ''),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: priceDrops.length,
+            itemBuilder: (context, index) {
+              final product = priceDrops[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ProductCard(
+                  product: product,
+                  onTap: () {
+                    context.go('/product/${product.id}');
+                  },
+                ),
+              );
             },
           ),
-        );
-      },
+        ),
+      ],
+    );
+  }
+
+  void _showSearchDialog(BuildContext context, AppLocalizations l10n) {
+    final searchController = TextEditingController(text: _searchQuery);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.translate('searchProducts')),
+        content: TextField(
+          controller: searchController,
+          decoration: InputDecoration(
+            hintText: l10n.translate('searchProducts'),
+            prefixIcon: const Icon(Icons.search),
+          ),
+          autofocus: true,
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) {
+              setState(() => _searchQuery = value.trim());
+              Navigator.pop(ctx);
+            }
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l10n.translate('cancel')),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (searchController.text.trim().isNotEmpty) {
+                setState(() => _searchQuery = searchController.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            child: Text(l10n.translate('search')),
+          ),
+        ],
+      ),
     );
   }
 }

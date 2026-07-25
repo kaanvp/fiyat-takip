@@ -9,10 +9,10 @@ void main() {
       scraper = GenericHtmlScraper();
     });
 
-    test('canHandle should return false (used as fallback)', () {
-      expect(scraper.canHandle(Uri.parse('https://www.example.com/product/test')), false);
-      expect(scraper.canHandle(Uri.parse('https://www.unknown-site.com/product/test')), false);
-      expect(scraper.canHandle(Uri.parse('https://trendyol.com/product/test')), false);
+    test('canHandle should return true for any URL (universal lightweight scraper)', () {
+      expect(scraper.canHandle(Uri.parse('https://www.example.com/product/test')), true);
+      expect(scraper.canHandle(Uri.parse('https://www.unknown-site.com/product/test')), true);
+      expect(scraper.canHandle(Uri.parse('https://trendyol.com/product/test')), true);
     });
 
     test('displayName should be "Generic HTML Scraper"', () {

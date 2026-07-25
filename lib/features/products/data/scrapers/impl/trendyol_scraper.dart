@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 import 'package:html/dom.dart' as html_dom;
@@ -6,7 +7,9 @@ import '../scraper_interface.dart';
 import '../base_scraper.dart';
 
 class TrendyolScraper extends BaseScraper {
-  TrendyolScraper({http.Client? client}) : super(client: client);
+  TrendyolScraper({http.Client? client}) : super(client: client) {
+    // Override BaseScraper's client for Trendyol-specific handling
+  }
 
   @override
   bool canHandle(Uri url) {
@@ -16,21 +19,25 @@ class TrendyolScraper extends BaseScraper {
 
   @override
   Future<ScrapedProduct> scrape(Uri url) async {
+    // Use safeGet with Trendyol-specific headers
     final response = await safeGet(url, extraHeaders: {
       'Referer': 'https://www.trendyol.com/',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
     });
 
-    final document = html_parser.parse(response.body);
+    final body = getResponseBody(response);
+    final document = html_parser.parse(body);
 
     // Strategy 1: JSON-LD
     final jsonLd = extractJsonLdProduct(document);
     if (jsonLd != null) {
-      final product = parseProductFromJsonLd(jsonLd);
+      final product = parseProductFromJsonLd(jsonLd, baseUri: url);
       if (product != null) return product;
     }
 
     // Strategy 2: Initial State JSON
-    final initialStateProduct = _extractFromInitialState(response.body);
+    final initialStateProduct = _extractFromInitialState(body, url);
     if (initialStateProduct != null) {
        return initialStateProduct;
     }
@@ -54,7 +61,7 @@ class TrendyolScraper extends BaseScraper {
     );
   }
 
-  ScrapedProduct? _extractFromInitialState(String htmlBody) {
+  ScrapedProduct? _extractFromInitialState(String htmlBody, Uri url) {
     try {
       final regex = RegExp(r'window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*(\{.+?\});', dotAll: true);
       final match = regex.firstMatch(htmlBody);
@@ -82,7 +89,9 @@ class TrendyolScraper extends BaseScraper {
 
             String? imageUrl;
             if (product['images'] != null && product['images'] is List && product['images'].isNotEmpty) {
-              imageUrl = 'https://cdn.dsmcdn.com${product['images'].first}';
+              final rawFirst = product['images'].first.toString();
+              final rawUrl = rawFirst.startsWith('http') ? rawFirst : (rawFirst.startsWith('//') ? 'https:$rawFirst' : 'https://cdn.dsmcdn.com$rawFirst');
+              imageUrl = cleanAndNormalizeImageUrl(rawUrl, url);
             }
 
             bool? availability;
@@ -136,30 +145,51 @@ class TrendyolScraper extends BaseScraper {
       '[class*="prc"]',
     ];
 
+    final candidates = <html_dom.Element>[];
+    final seen = <String>{};
     for (final selector in selectors) {
-      final element = document.querySelector(selector);
-      if (element != null) {
-        final priceText = element.attributes['content'] ?? element.text.trim();
-        final parsed = parsePrice(priceText);
-        if (parsed != null) return parsed;
+      final elements = document.querySelectorAll(selector);
+      for (final element in elements) {
+        final text = element.attributes['content'] ?? element.text.trim();
+        if (text.isNotEmpty && !seen.contains(text)) {
+          seen.add(text);
+          candidates.add(element);
+        }
       }
     }
-    return null;
+
+    return findBestPrice(candidates);
   }
 
   String? _extractImageUrl(html_dom.Document document, Uri url) {
     final selectors = [
       'meta[property="og:image"]',
+      'meta[property="og:image:secure_url"]',
+      'meta[name="twitter:image"]',
       '.product-detail-img img',
+      '.gallery-container img',
       '[class*="product-image"] img',
+      'img[src*="product"]',
+    ];
+
+    final attributePriority = [
+      'content',
+      'data-zoom-image',
+      'data-original',
+      'data-src',
+      'srcset',
+      'src',
     ];
 
     for (final selector in selectors) {
-      final element = document.querySelector(selector);
-      if (element != null) {
-        final imageUrl = element.attributes['content'] ?? element.attributes['src'];
-        if (imageUrl != null && imageUrl.isNotEmpty) {
-          return makeAbsoluteUrl(imageUrl, url);
+      final elements = document.querySelectorAll(selector);
+      for (final element in elements) {
+        for (final attr in attributePriority) {
+          final raw = element.attributes[attr];
+          if (raw != null && raw.trim().isNotEmpty) {
+            final cleaned = cleanAndNormalizeImageUrl(raw, url);
+            if (cleaned != null) return cleaned;
+          }
         }
       }
     }

@@ -35,12 +35,6 @@ class ProductRepositoryImpl implements ProductRepository {
   }
 
   @override
-  Future<List<domain.Product>> getArchivedProducts() async {
-    final products = await localDataSource.getArchivedProducts();
-    return products.map(_toProductEntity).toList();
-  }
-
-  @override
   Future<domain.Product?> getProductById(String id) async {
     final product = await localDataSource.getProductById(id);
     return product != null ? _toProductEntity(product) : null;
@@ -63,16 +57,6 @@ class ProductRepositoryImpl implements ProductRepository {
   @override
   Future<void> deleteProduct(String id) async {
     await localDataSource.deleteProduct(id);
-  }
-
-  @override
-  Future<void> archiveProduct(String id) async {
-    await localDataSource.archiveProduct(id);
-  }
-
-  @override
-  Future<void> unarchiveProduct(String id) async {
-    await localDataSource.unarchiveProduct(id);
   }
 
   @override
@@ -175,7 +159,7 @@ class ProductRepositoryImpl implements ProductRepository {
   }
 
   @override
-  Future<domain.Product> addProductFromUrl(String productUrl, {double? targetPrice, String? notes}) async {
+  Future<domain.Product> addProductFromUrl(String productUrl, {double? targetPrice, String? notes, String? groupId}) async {
     final uri = Uri.parse(productUrl);
     
     // Try multiple scrapers in hierarchy
@@ -205,10 +189,10 @@ class ProductRepositoryImpl implements ProductRepository {
           addedAt: DateTime.now(),
           lastCheckedAt: DateTime.now(),
           lastCheckStatus: domain.CheckStatus.ok,
-          isArchived: false,
           targetPrice: targetPrice,
           notes: notes,
           tags: [],
+          groupId: groupId,
         );
 
         return await addProduct(product);
@@ -231,6 +215,7 @@ class ProductRepositoryImpl implements ProductRepository {
     final genericNames = {
       'Generic HTML Scraper',
       'WebView Scraper',
+      'Smart Fallback Scraper',
     };
     
     // 1. Site-specific scrapers (Trendyol, Hepsiburada, N11)
@@ -240,13 +225,19 @@ class ProductRepositoryImpl implements ProductRepository {
       }
     }
     
-    // 2. Generic HTML Scraper (lightweight fallback)
+    // 2. Generic HTML Scraper (lightweight HTTP fallback)
     final generic = scraperRegistry.getScraperByDisplayName('Generic HTML Scraper');
     if (generic != null) {
       prioritizedScrapers.add(generic);
     }
     
-    // 3. WebView Scraper (last resort, uses JS rendering)
+    // 3. Smart Fallback Scraper (HTTP → Puppeteer for JS/blocked sites)
+    final smart = scraperRegistry.getScraperByDisplayName('Smart Fallback Scraper');
+    if (smart != null) {
+      prioritizedScrapers.add(smart);
+    }
+
+    // 4. WebView Scraper (real mobile browser — bypasses Cloudflare for blocked sites)
     final webview = scraperRegistry.getScraperByDisplayName('WebView Scraper');
     if (webview != null) {
       prioritizedScrapers.add(webview);
@@ -316,7 +307,6 @@ class ProductRepositoryImpl implements ProductRepository {
           addedAt: product.addedAt,
           lastCheckedAt: DateTime.now(),
           lastCheckStatus: domain.CheckStatus.ok,
-          isArchived: product.isArchived,
           notes: product.notes,
           tags: product.tags,
           notifyThresholdPercent: product.notifyThresholdPercent,
@@ -347,7 +337,6 @@ class ProductRepositoryImpl implements ProductRepository {
       addedAt: product.addedAt,
       lastCheckedAt: DateTime.now(),
       lastCheckStatus: _mapScraperErrorToCheckStatus(lastError?.errorType ?? ScraperErrorType.unknown),
-      isArchived: product.isArchived,
       notes: product.notes,
       tags: product.tags,
       notifyThresholdPercent: product.notifyThresholdPercent,
@@ -390,7 +379,6 @@ class ProductRepositoryImpl implements ProductRepository {
       addedAt: product.addedAt,
       lastCheckedAt: product.lastCheckedAt,
       lastCheckStatus: _convertCheckStatus(product.lastCheckStatus),
-      isArchived: product.isArchived,
       notes: product.notes,
       tags: product.tags,
       notifyThresholdPercent: product.notifyThresholdPercent,
@@ -439,7 +427,6 @@ class ProductRepositoryImpl implements ProductRepository {
       addedAt: Value(product.addedAt),
       lastCheckedAt: Value(product.lastCheckedAt),
       lastCheckStatus: Value(_convertToDbCheckStatus(product.lastCheckStatus)),
-      isArchived: Value(product.isArchived),
       notes: Value(product.notes),
       tags: Value(product.tags),
       notifyThresholdPercent: Value(product.notifyThresholdPercent),
@@ -588,7 +575,6 @@ class ProductRepositoryImpl implements ProductRepository {
       'addedAt': product.addedAt.toIso8601String(),
       'lastCheckedAt': product.lastCheckedAt?.toIso8601String(),
       'lastCheckStatus': product.lastCheckStatus.name,
-      'isArchived': product.isArchived,
       'notes': product.notes,
       'tags': product.tags,
       'notifyThresholdPercent': product.notifyThresholdPercent,
@@ -615,7 +601,6 @@ class ProductRepositoryImpl implements ProductRepository {
           ? DateTime.parse(json['lastCheckedAt'] as String) 
           : null,
       lastCheckStatus: _parseCheckStatus(json['lastCheckStatus'] as String),
-      isArchived: json['isArchived'] as bool,
       notes: json['notes'] as String?,
       tags: (json['tags'] as List<dynamic>).cast<String>(),
       notifyThresholdPercent: json['notifyThresholdPercent'] as int?,

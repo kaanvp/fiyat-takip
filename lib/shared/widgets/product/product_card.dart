@@ -46,18 +46,35 @@ class ProductCard extends StatelessWidget {
                   color: theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: product.imageUrl != null
+                child: product.imageUrl != null && product.imageUrl!.isNotEmpty
                     ? ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: Image.network(
                           product.imageUrl!,
                           fit: BoxFit.cover,
+                          width: 80,
+                          height: 80,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                                strokeWidth: 2,
+                              ),
+                            );
+                          },
                           errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.image_not_supported);
+                            return const Icon(Icons.image_not_supported, size: 32);
+                          },
+                          headers: const {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
                           },
                         ),
                       )
-                    : const Icon(Icons.shopping_bag),
+                    : const Icon(Icons.shopping_bag, size: 32),
               ),
               const SizedBox(width: 12),
               // Product Info
@@ -126,7 +143,7 @@ class ProductCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            '-${product.priceChangePercent.abs().toStringAsFixed(0)}%',
+                            '${product.priceChangePercent.abs().toStringAsFixed(0)}%',
                             style: const TextStyle(
                               color: Colors.green,
                               fontSize: 12,

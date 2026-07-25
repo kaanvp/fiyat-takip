@@ -6,6 +6,7 @@ import '../../../../core/localization/app_localizations.dart';
 import '../../../../core/providers/providers.dart';
 import '../../domain/entities/product.dart';
 import '../providers/product_providers.dart';
+import '../../../../shared/widgets/product/price_history_chart.dart';
 
 class ProductDetailScreen extends ConsumerWidget {
   final String productId;
@@ -62,9 +63,12 @@ class ProductDetailScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.open_in_new),
             onPressed: () async {
-              final uri = Uri.parse(product.productUrl);
-              if (await canLaunchUrl(uri)) {
+              try {
+                final uri = Uri.parse(product.productUrl);
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
+              } catch (e) {
+                // URL açılamazsa sessizce geç
+                debugPrint('URL açılamadı: $e');
               }
             },
           ),
@@ -79,10 +83,10 @@ class ProductDetailScreen extends ConsumerWidget {
             _buildHeroSection(context, product, theme, l10n),
             const SizedBox(height: 24),
             // Price History Chart
-            _buildPriceHistorySection(theme, l10n),
+            _buildPriceHistorySection(context, ref, theme, l10n, product),
             const SizedBox(height: 24),
             // Details Section
-            _buildDetailsSection(context, product, theme, l10n),
+            _buildDetailsSection(context, ref, product, theme, l10n),
             const SizedBox(height: 24),
             // Actions
             _buildActionsSection(context, product, theme, l10n, ref),
@@ -104,12 +108,26 @@ class ProductDetailScreen extends ConsumerWidget {
             color: theme.colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: product.imageUrl != null
+          child: product.imageUrl != null && product.imageUrl!.isNotEmpty
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: Image.network(
                     product.imageUrl!,
+                    key: ValueKey(product.imageUrl),
                     fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: 300,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      );
+                    },
                     errorBuilder: (context, error, stackTrace) {
                       return const Icon(Icons.image_not_supported, size: 64);
                     },
@@ -169,18 +187,24 @@ class ProductDetailScreen extends ConsumerWidget {
         // Price
         Row(
           children: [
-            Text(
-              '${product.currency}${product.currentPrice.toStringAsFixed(0)}',
-              style: theme.textTheme.displaySmall?.copyWith(
-                fontWeight: FontWeight.bold,
+            Flexible(
+              child: Text(
+                '${product.currency} ${product.currentPrice.toStringAsFixed(0)}',
+                style: theme.textTheme.displaySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 12),
-            Text(
-              '${product.currency}${product.initialPrice.toStringAsFixed(0)}',
-              style: theme.textTheme.titleMedium?.copyWith(
-                decoration: TextDecoration.lineThrough,
-                color: theme.colorScheme.onSurfaceVariant,
+            Flexible(
+              child: Text(
+                '${product.currency} ${product.initialPrice.toStringAsFixed(0)}',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  decoration: TextDecoration.lineThrough,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
@@ -189,7 +213,9 @@ class ProductDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPriceHistorySection(ThemeData theme, AppLocalizations l10n) {
+  Widget _buildPriceHistorySection(BuildContext context, WidgetRef ref, ThemeData theme, AppLocalizations l10n, Product product) {
+    final priceHistoryAsync = ref.watch(priceHistoryProvider(product.id));
+    
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -212,58 +238,60 @@ class ProductDetailScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // Segmented Control
-          Row(
-            children: [
-              Expanded(
-                child: _buildSegmentButton(l10n.translate('days30'), true, theme),
-              ),
-              Expanded(
-                child: _buildSegmentButton(l10n.translate('days90'), false, theme),
-              ),
-              Expanded(
-                child: _buildSegmentButton(l10n.translate('allTime'), false, theme),
-              ),
-            ],
-          ),
+          // Segmented Control (functional filtering would be added here)
+          // For now, show all time data
           const SizedBox(height: 16),
-          // Chart Placeholder
-          Container(
-            height: 200,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
+          // Actual Chart
+          priceHistoryAsync.when(
+            loading: () => Container(
+              height: 200,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Center(child: CircularProgressIndicator()),
             ),
-            child: Center(
-              child: Text(l10n.translate('priceChartPlaceholder')),
+            error: (error, stackTrace) => Container(
+              height: 200,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Text('${l10n.translate('error')}: $error'),
+              ),
             ),
+            data: (history) {
+              if (history.isEmpty) {
+                return Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Text(l10n.translate('noPriceHistory')),
+                  ),
+                );
+              }
+              
+              final chartData = history.map((entry) => PriceHistoryData(
+                date: entry.checkedAt,
+                price: entry.price,
+              )).toList();
+              
+              return PriceHistoryChart(
+                data: chartData,
+                currency: product.currency,
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSegmentButton(String label, bool isSelected, ThemeData theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? theme.colorScheme.surface : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: isSelected
-              ? theme.colorScheme.onSurface
-              : theme.colorScheme.onSurfaceVariant,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailsSection(BuildContext context, Product product, ThemeData theme, AppLocalizations l10n) {
+  Widget _buildDetailsSection(BuildContext context, WidgetRef ref, Product product, ThemeData theme, AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -288,6 +316,8 @@ class ProductDetailScreen extends ConsumerWidget {
             _buildDetailRow(l10n.translate('targetPrice'), '${product.currency}${product.targetPrice}', theme),
           if (product.notes != null && product.notes!.isNotEmpty)
             _buildDetailRow(l10n.translate('notes'), product.notes!, theme),
+          if (product.groupId != null)
+            _buildGroupDetailRow(context, ref, product, theme, l10n),
         ],
       ),
     );
@@ -313,6 +343,68 @@ class ProductDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildGroupDetailRow(BuildContext context, WidgetRef ref, Product product, ThemeData theme, AppLocalizations l10n) {
+    final groupsAsync = ref.watch(productGroupsProvider);
+    
+    return groupsAsync.when(
+      data: (groups) {
+        final group = groups.where((g) => g.id == product.groupId).firstOrNull;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: InkWell(
+            onTap: () => context.go('/group/${product.groupId}'),
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  l10n.translate('myGroups'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      group?.name ?? '...',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.chevron_right,
+                      size: 18,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+      loading: () => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              l10n.translate('myGroups'),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Text('...'),
+          ],
+        ),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
     );
   }
 
@@ -351,18 +443,6 @@ class ProductDetailScreen extends ConsumerWidget {
           height: 48,
           child: OutlinedButton.icon(
             onPressed: () {
-              _toggleArchiveProduct(context, product, ref, l10n);
-            },
-            icon: Icon(product.isArchived ? Icons.unarchive : Icons.archive),
-            label: Text(product.isArchived ? l10n.translate('unarchive') : l10n.translate('archive')),
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: () {
               _showDeleteDialog(context, product, ref, l10n);
             },
             icon: const Icon(Icons.delete),
@@ -393,11 +473,18 @@ class ProductDetailScreen extends ConsumerWidget {
                 final repository = ref.read(productRepositoryProvider);
                 await repository.deleteProduct(product.id);
                 ref.invalidate(productsListProvider);
+                if (product.groupId != null) {
+                  ref.invalidate(productsByGroupProvider(product.groupId!));
+                }
                 if (dialogContext.mounted) {
                   dialogContext.pop();
                 }
                 if (context.mounted) {
-                  context.pop();
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/home');
+                  }
                 }
               } catch (e) {
                 if (dialogContext.mounted) {
@@ -417,34 +504,6 @@ class ProductDetailScreen extends ConsumerWidget {
     );
   }
 
-  void _toggleArchiveProduct(BuildContext context, Product product, WidgetRef ref, AppLocalizations l10n) async {
-    try {
-      final repository = ref.read(productRepositoryProvider);
-      if (product.isArchived) {
-        await repository.unarchiveProduct(product.id);
-      } else {
-        await repository.archiveProduct(product.id);
-      }
-      ref.invalidate(productsListProvider);
-      ref.invalidate(productProvider(productId));
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(product.isArchived
-                ? 'Product unarchived'
-                : 'Product archived'),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to archive: $e')),
-        );
-      }
-    }
-  }
-
   void _showEditProductDialog(BuildContext context, Product product, WidgetRef ref, AppLocalizations l10n) async {
     final targetPriceController = TextEditingController(
       text: product.targetPrice?.toString() ?? '',
@@ -453,41 +512,76 @@ class ProductDetailScreen extends ConsumerWidget {
       text: product.notes ?? '',
     );
 
+    // Load groups for dropdown
+    final groups = await ref.read(productGroupsProvider.future);
+    String? selectedGroupId = product.groupId;
+
     final result = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.translate('editProduct')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: targetPriceController,
-              decoration: InputDecoration(
-                labelText: l10n.translate('targetPriceOptional'),
-                prefixText: '₺',
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(l10n.translate('editProduct')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: targetPriceController,
+                decoration: InputDecoration(
+                  labelText: l10n.translate('targetPriceOptional'),
+                  prefixText: '₺',
+                ),
+                keyboardType: TextInputType.number,
               ),
-              keyboardType: TextInputType.number,
+              const SizedBox(height: 16),
+              TextField(
+                controller: notesController,
+                decoration: InputDecoration(
+                  labelText: l10n.translate('notesOptional'),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              // Group dropdown
+              DropdownButtonFormField<String?>(
+                value: selectedGroupId,
+                decoration: InputDecoration(
+                  labelText: l10n.translate('myGroups'),
+                  prefixIcon: const Icon(Icons.folder_outlined, size: 20),
+                ),
+                items: [
+                  DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text(
+                      l10n.translate('noGroups'),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  ...groups.map((group) => DropdownMenuItem<String?>(
+                    value: group.id,
+                    child: Text(group.name),
+                  )),
+                ],
+                onChanged: (value) {
+                  setDialogState(() {
+                    selectedGroupId = value;
+                  });
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => dialogContext.pop(false),
+              child: Text(l10n.translate('cancel')),
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: notesController,
-              decoration: InputDecoration(
-                labelText: l10n.translate('notesOptional'),
-              ),
-              maxLines: 3,
+            FilledButton(
+              onPressed: () => dialogContext.pop(true),
+              child: Text(l10n.translate('save')),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => dialogContext.pop(false),
-            child: Text(l10n.translate('cancel')),
-          ),
-          FilledButton(
-            onPressed: () => dialogContext.pop(true),
-            child: Text(l10n.translate('save')),
-          ),
-        ],
       ),
     );
 
@@ -497,10 +591,18 @@ class ProductDetailScreen extends ConsumerWidget {
         final updatedProduct = product.copyWith(
           targetPrice: double.tryParse(targetPriceController.text),
           notes: notesController.text.isNotEmpty ? notesController.text : null,
+          groupId: selectedGroupId,
         );
         await repository.updateProduct(updatedProduct);
         ref.invalidate(productsListProvider);
         ref.invalidate(productProvider(productId));
+        // Refresh both old and new group pages
+        if (product.groupId != null) {
+          ref.invalidate(productsByGroupProvider(product.groupId!));
+        }
+        if (selectedGroupId != null) {
+          ref.invalidate(productsByGroupProvider(selectedGroupId!));
+        }
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Product updated')),

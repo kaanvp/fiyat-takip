@@ -17,6 +17,18 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _showPriceDropsOnly = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text.toLowerCase().trim();
+      });
+    });
+  }
 
   @override
   void dispose() {
@@ -35,6 +47,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
+            icon: const Icon(Icons.folder_outlined),
+            tooltip: l10n.translate('myGroups'),
+            onPressed: () {
+              context.go('/groups');
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.add),
             onPressed: () {
               context.go('/add-product');
@@ -51,11 +70,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           actionLabel: l10n.translate('retry'),
           onAction: () => ref.invalidate(productsListProvider),
         ),
-        data: (products) => products.isEmpty
-            ? _buildEmptyState(l10n)
-            : _buildProductList(products, l10n),
+        data: (products) {
+          final filtered = _filterProducts(products);
+          return products.isEmpty
+              ? _buildEmptyState(l10n)
+              : _buildProductList(filtered, products.length, l10n);
+        },
       ),
     );
+  }
+
+  List<Product> _filterProducts(List<Product> products) {
+    var result = products;
+
+    // Filter by search query
+    if (_searchQuery.isNotEmpty) {
+      result = result.where((p) =>
+        p.name.toLowerCase().contains(_searchQuery) ||
+        p.displaySiteName.toLowerCase().contains(_searchQuery) ||
+        p.siteHost.toLowerCase().contains(_searchQuery) ||
+        p.tags.any((t) => t.toLowerCase().contains(_searchQuery)),
+      ).toList();
+    }
+
+    // Filter by price drop
+    if (_showPriceDropsOnly) {
+      result = result.where((p) => p.hasPriceDrop).toList();
+    }
+
+    return result;
   }
 
   Widget _buildEmptyState(AppLocalizations l10n) {
@@ -70,7 +113,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  Widget _buildProductList(List<Product> products, AppLocalizations l10n) {
+  Widget _buildProductList(List<Product> filteredProducts, int totalCount, AppLocalizations l10n) {
     return Column(
       children: [
         // Search Bar
@@ -84,39 +127,140 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   decoration: InputDecoration(
                     hintText: l10n.translate('searchProducts'),
                     prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                            },
+                          )
+                        : null,
                   ),
                 ),
               ),
               const SizedBox(width: 8),
               IconButton.outlined(
-                icon: const Icon(Icons.tune),
+                icon: Icon(
+                  Icons.tune,
+                  color: _showPriceDropsOnly
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
                 onPressed: () {
-                  // Show filter options
+                  _showFilterDialog(context, l10n);
                 },
               ),
             ],
           ),
         ),
+        if (_searchQuery.isNotEmpty || _showPriceDropsOnly)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Text(
+                  '${filteredProducts.length} / $totalCount ${l10n.translate('products')}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const Spacer(),
+                if (_showPriceDropsOnly)
+                  Chip(
+                    label: Text(
+                      l10n.translate('showPriceDropsOnly'),
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    deleteIcon: const Icon(Icons.close, size: 16),
+                    onDeleted: () {
+                      setState(() => _showPriceDropsOnly = false);
+                    },
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+          ),
         // Product List
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: products.length,
-            itemBuilder: (context, index) {
-              final product = products[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: ProductCard(
-                  product: product,
-                  onTap: () {
-                    context.go('/product/${product.id}');
+          child: filteredProducts.isEmpty
+              ? Center(
+                  child: Text(
+                    l10n.translate('noProductsMessage'),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: filteredProducts.length,
+                  itemBuilder: (context, index) {
+                    final product = filteredProducts[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: ProductCard(
+                        product: product,
+                        onTap: () {
+                          context.go('/product/${product.id}');
+                        },
+                      ),
+                    );
                   },
                 ),
-              );
-            },
-          ),
         ),
       ],
+    );
+  }
+
+  void _showFilterDialog(BuildContext context, AppLocalizations l10n) {
+    bool localShowPriceDropsOnly = _showPriceDropsOnly;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(l10n.translate('filter')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.translate('filterByPriceDrop'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                title: Text(l10n.translate('showPriceDropsOnly')),
+                value: localShowPriceDropsOnly,
+                onChanged: (value) {
+                  setDialogState(() {
+                    localShowPriceDropsOnly = value ?? false;
+                  });
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(l10n.translate('cancel')),
+            ),
+            FilledButton(
+              onPressed: () {
+                setState(() {
+                  _showPriceDropsOnly = localShowPriceDropsOnly;
+                });
+                Navigator.pop(ctx);
+              },
+              child: Text(l10n.translate('apply')),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -11,12 +11,38 @@ Uygulama çok katmanlı bir yaklaşım kullanır:
 Her e-ticaret sitesi için optimize edilmiş scraper'lar:
 
 - **TrendyolScraper**: Trendyol'a özel selector'lar ve data extraction
-- **HepsiburadaScraper**: Hepsiburada'ya özel implementasyon
-- **N11Scraper**: N11'e özel implementasyon
+- **HepsiburadaScraper**: Hepsiburada'ya özel (www'siz URL kullanır)
+- **N11Scraper**: N11'e özel (www'siz URL + page JSON extraction)
+- **LCWScraper**: LC Waikiki (mobil User-Agent ile JSON-LD)
+- **NikeScraper**: Nike (Next.js __NEXT_DATA__ çözümleme)
+- **MaviScraper**: Mavi (www'siz URL)
+- **SokMarketScraper**: Şok Market (CSS module selector)
+- **MediaMarktScraper**, **MigrosScraper**, **BoynerScraper**, **GratisScraper**, vb.
 
 Bu scraper'lar hızlı ve verimlidir çünkü site yapısına özel optimize edilmiştir.
 
-### 2. Puppeteer (Headless Chrome)
+### 2. Generic HTML Scraper
+
+Herhangi bir site için çalışan genel scraping motoru:
+- JSON-LD structured data
+- SPA state data (__NEXT_DATA__, __INITIAL_STATE__, __NUXT__)
+- Meta tag'ler (OG, Twitter, Schema)
+- DOM seçicilerle HTML parsing
+- **findBestPrice** algoritması ile indirimli/eski fiyat ayrımı
+
+### 3. Smart Fallback Scraper
+
+HTTP başarısız olursa Puppeteer (headless Chrome) dener:
+- 403 blok veya JS gerekli sitelerde otomatik Puppeteer fallback
+- Sadece desktop platformlarda çalışır
+- Anti-detection önlemleri (webdriver tespiti engelleme)
+
+### 4. WebView Scraper
+
+Son çare olarak gerçek mobil tarayıcı kullanır:
+- Cloudflare, Akamai, Imperva gibi korumaları geçer
+- Sadece Android/iOS Flutter uygulamasında çalışır
+- 4 aşamalı extraction pipeline (scroll + delay ile SPA desteği)
 
 Modern web korumalarını aşan en güçlü scraping yöntemi:
 

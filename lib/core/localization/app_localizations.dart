@@ -64,6 +64,14 @@ class AppLocalizations {
     'priceDrops': 'Price Drops',
     'noPriceDrops': 'No price drops yet',
     'noPriceDropsMessage': 'When product prices drop, they\'ll appear here.',
+    'filter': 'Filter',
+    'filterByPriceDrop': 'Filter by Price Drop',
+    'showPriceDropsOnly': 'Show Price Drops Only',
+    'showAllProducts': 'Show All Products',
+    'apply': 'Apply',
+    'search': 'Search',
+    'noPriceHistory': 'No price history available',
+    'error': 'Error',
 
     // Product Detail Screen
     'allTimeLow': 'ALL-TIME LOW',
@@ -78,10 +86,10 @@ class AppLocalizations {
     'priceChange': 'Price Change',
     'targetPrice': 'Target Price',
     'notes': 'Notes',
+    'cheapest': 'Cheapest',
+    'addLink': 'Add another site link to this group',
     'comparePrices': 'Compare Prices',
     'editProduct': 'Edit Product',
-    'archive': 'Archive',
-    'unarchive': 'Unarchive',
     'save': 'Save',
     'delete': 'Delete',
     'deleteProduct': 'Delete Product',
@@ -119,6 +127,18 @@ class AppLocalizations {
     'clearAllDataMessage': 'This will delete all your products and price history. This action cannot be undone.',
     'dataCleared': 'All data cleared successfully',
     'failedToClearData': 'Failed to clear data: ',
+
+    // Groups Screen
+    'myGroups': 'My Groups',
+    'createGroup': 'Create Group',
+    'groupName': 'Group Name',
+    'groupNameHint': 'e.g., Headphones',
+    'groupCreated': 'Group created',
+    'deleteGroup': 'Delete Group',
+    'deleteGroupConfirm': 'Delete this group and remove all product links?',
+    'noGroups': 'No groups yet',
+    'noGroupsMessage': 'Organize your products into groups to compare prices.',
+    'products': 'products',
 
     // Group Comparison Screen
     'trackingRetailers': 'Tracking ',
@@ -173,6 +193,14 @@ class AppLocalizations {
     'priceDrops': 'İndirimler',
     'noPriceDrops': 'Henüz indirim yok',
     'noPriceDropsMessage': 'Ürün fiyatları düştüğünde burada görünecek.',
+    'filter': 'Filtre',
+    'filterByPriceDrop': 'İndirim Durumuna Göre Filtrele',
+    'showPriceDropsOnly': 'Sadece İndirimleri Göster',
+    'showAllProducts': 'Tüm Ürünleri Göster',
+    'apply': 'Uygula',
+    'search': 'Ara',
+    'noPriceHistory': 'Fiyat geçmişi mevcut değil',
+    'error': 'Hata',
 
     // Product Detail Screen
     'allTimeLow': 'EN DÜŞÜK FİYAT',
@@ -187,10 +215,10 @@ class AppLocalizations {
     'priceChange': 'Fiyat Değişimi',
     'targetPrice': 'Hedef Fiyat',
     'notes': 'Notlar',
+    'cheapest': 'En Ucuz',
+    'addLink': 'Bu gruba başka bir site bağlantısı ekle',
     'comparePrices': 'Fiyatları Karşılaştır',
     'editProduct': 'Ürünü Düzenle',
-    'archive': 'Arşivle',
-    'unarchive': 'Arşivden Çıkar',
     'save': 'Kaydet',
     'delete': 'Sil',
     'deleteProduct': 'Ürünü Sil',
@@ -228,6 +256,18 @@ class AppLocalizations {
     'clearAllDataMessage': 'Bu işlem tüm ürünlerinizi ve fiyat geçmişinizi silecektir. Bu işlem geri alınamaz.',
     'dataCleared': 'Tüm veriler başarıyla temizlendi',
     'failedToClearData': 'Veriler temizlenemedi: ',
+
+    // Groups Screen
+    'myGroups': 'Gruplarım',
+    'createGroup': 'Grup Oluştur',
+    'groupName': 'Grup Adı',
+    'groupNameHint': 'Örn: Kulaklıklar',
+    'groupCreated': 'Grup oluşturuldu',
+    'deleteGroup': 'Grubu Sil',
+    'deleteGroupConfirm': 'Bu grubu ve tüm ürün bağlantılarını silsin mi?',
+    'noGroups': 'Henüz grup yok',
+    'noGroupsMessage': 'Ürünlerinizi gruplara ayırarak fiyatları karşılaştırın.',
+    'products': 'ürün',
 
     // Group Comparison Screen
     'trackingRetailers': 'Takip edilen ',
