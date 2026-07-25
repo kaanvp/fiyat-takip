@@ -28,6 +28,8 @@ class PriceHistoryChart extends StatelessWidget {
     final priceRange = maxPrice - minPrice;
     final minY = (minPrice - priceRange * 0.1).clamp(0.0, double.infinity);
     final maxY = maxPrice + priceRange * 0.1;
+    // Ensure horizontalInterval is never zero (happens when all prices are identical)
+    final interval = ((maxY - minY) / 5).clamp(1.0, double.infinity);
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -38,7 +40,7 @@ class PriceHistoryChart extends StatelessWidget {
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
-              horizontalInterval: (maxY - minY) / 5,
+              horizontalInterval: interval,
               getDrawingHorizontalLine: (value) {
                 return FlLine(
                   color: Colors.grey.withValues(alpha: 0.3),

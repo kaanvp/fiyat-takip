@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 import 'package:html/dom.dart' as html_dom;
@@ -126,7 +125,7 @@ class MaviScraper extends BaseScraper {
       }
     }
 
-    if (name != null && priceResult != null) {
+    if (priceResult != null) {
       return ScrapedProduct(name: name, imageUrl: _extractImageUrl(document, url), price: priceResult.$1, currency: priceResult.$2);
     }
     return null;

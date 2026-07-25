@@ -7,6 +7,7 @@ import '../../../../shared/widgets/product/product_card.dart';
 import '../../../../shared/widgets/ui/empty_state.dart';
 import '../../domain/entities/product.dart';
 import '../../presentation/providers/product_providers.dart';
+import '../../../../core/providers/providers.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -198,11 +199,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     final product = filteredProducts[index];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: ProductCard(
-                        product: product,
-                        onTap: () {
-                          context.go('/product/${product.id}');
+                      child: Dismissible(
+                        key: ValueKey(product.id),
+                        direction: DismissDirection.endToStart,
+                        confirmDismiss: (direction) async {
+                          return await _showDeleteConfirmDialog(context, product, l10n);
                         },
+                        onDismissed: (direction) async {
+                          final repository = ref.read(productRepositoryProvider);
+                          await repository.deleteProduct(product.id);
+                          ref.invalidate(productsListProvider);
+                        },
+                        background: Container(
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.error,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 24),
+                          child: Icon(
+                            Icons.delete_outline,
+                            color: Theme.of(context).colorScheme.onError,
+                            size: 28,
+                          ),
+                        ),
+                        child: ProductCard(
+                          product: product,
+                          onTap: () {
+                            context.go('/product/${product.id}');
+                          },
+                        ),
                       ),
                     );
                   },
@@ -262,5 +288,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Future<bool> _showDeleteConfirmDialog(BuildContext context, Product product, AppLocalizations l10n) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.translate('deleteProduct')),
+        content: Text('${l10n.translate('deleteConfirm')}"${product.name}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.translate('cancel')),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.translate('delete')),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 }
