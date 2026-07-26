@@ -1,14 +1,15 @@
 # Fiyat Takip
 
-Kişisel kullanım için **50'den fazla e-ticaret sitesinden** ürün fiyatlarını otomatik takip eden Flutter uygulaması. Tüm veri cihazda saklanır, arka planda otomatik fiyat kontrolü yapılır.
+Kişisel kullanım için 50'den fazla e-ticaret sitesinden ürün fiyatlarını otomatik takip eden Flutter uygulaması. Tüm veri cihazda saklanır, arka planda otomatik fiyat kontrolü yapılır.
 
-<img src="assets/Home%20-%20Product%20List.png" alt="Home - Product List" width="300">
-<img src="assets/Home%20-%20Empty%20State.png" alt="Home - Empty State" width="300">
-<img src="assets/Add%20Product.png" alt="Add Product" width="300">
-<img src="assets/Product%20Details.png" alt="Product Details" width="300">
-<img src="assets/Price%20Drops%20Feed.png" alt="Price Drops Feed" width="300">
-<img src="assets/Group%20Comparison.png" alt="Group Comparison" width="300">
-<img src="assets/Settings.png" alt="Settings" width="300">
+![Home - Product List](assets/Home%20-%20Product%20List.png)
+![Home - Empty State](assets/Home%20-%20Empty%20State.png)
+![Add Product](assets/Add%20Product.png)
+![Product Details](assets/Product%20Details.png)
+![Price Drops Feed](assets/Price%20Drops%20Feed.png)
+![Group Comparison](assets/Group%20Comparison.png)
+![Settings](assets/Settings.png)
+
 ## Özellikler
 
 - **50+ Site Desteği**: Trendyol, Hepsiburada, N11 gibi popüler siteler dahil 50'den fazla e-ticaret sitesi
