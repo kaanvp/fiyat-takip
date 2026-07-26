@@ -1,6 +1,7 @@
 # Fiyat Takip
 
 Kişisel kullanım için **50'den fazla e-ticaret sitesinden** ürün fiyatlarını otomatik takip eden Flutter uygulaması. Tüm veri cihazda saklanır, arka planda otomatik fiyat kontrolü yapılır.
+
 <img src="assets/Home%20-%20Product%20List.png" alt="Home - Product List" width="300">
 <img src="assets/Home%20-%20Empty%20State.png" alt="Home - Empty State" width="300">
 <img src="assets/Add%20Product.png" alt="Add Product" width="300">
