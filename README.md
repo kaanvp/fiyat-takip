@@ -2,13 +2,22 @@
 
 Kişisel kullanım için 50'den fazla e-ticaret sitesinden ürün fiyatlarını otomatik takip eden Flutter uygulaması. Tüm veri cihazda saklanır, arka planda otomatik fiyat kontrolü yapılır.
 
-![Home - Product List](assets/Home%20-%20Product%20List.png)
-![Home - Empty State](assets/Home%20-%20Empty%20State.png)
-![Add Product](assets/Add%20Product.png)
-![Product Details](assets/Product%20Details.png)
-![Price Drops Feed](assets/Price%20Drops%20Feed.png)
-![Group Comparison](assets/Group%20Comparison.png)
-![Settings](assets/Settings.png)
+## 📱 Ekran Görüntüleri
+
+<div align="center">
+  <img src="assets/Home%20-%20Product%20List.png" width="200" alt="Ana Sayfa Ürün Listesi">
+  <img src="assets/Home%20-%20Empty%20State.png" width="200" alt="Ana Sayfa Boş Durum">
+  <img src="assets/Add%20Product.png" width="200" alt="Ürün Ekleme">
+  <img src="assets/Product%20Details.png" width="200" alt="Ürün Detayı">
+</div>
+<br>
+<div align="center">
+  <img src="assets/Price%20Drops%20Feed.png" width="200" alt="Fiyat Düşüşleri">
+  <img src="assets/Group%20Comparison.png" width="200" alt="Grup Karşılaştırma">
+  <img src="assets/Settings.png" width="200" alt="Ayarlar">
+</div>
+
+---
 
 ## Özellikler
 
