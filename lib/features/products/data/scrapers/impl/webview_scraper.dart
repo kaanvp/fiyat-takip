@@ -297,6 +297,32 @@ class WebViewScraper implements ProductScraper {
           if (n && n > 0) return val.trim();
         }
         if (typeof val === "object" && val !== null) {
+          // Handle arrays: pick the lowest price or "sale" type
+          if (Array.isArray(val)) {
+            var bestArrPrice = null;
+            for (var ai = 0; ai < val.length; ai++) {
+              var item = val[ai];
+              if (item && typeof item === "object") {
+                var pKeysLocal = ["amount","value","price","raw","displayValue","sellingPrice","discountedPrice","cost","currentPrice","text","formattedAmount"];
+                for (var pi = 0; pi < pKeysLocal.length; pi++) {
+                  if (item[pKeysLocal[pi]] !== undefined) {
+                    var r = getPrice(item[pKeysLocal[pi]], depth + 1);
+                    if (r) {
+                      var rNum = parseFloat(r);
+                      if (rNum > 0) {
+                        var isSale = (item.type === "sale" || item.type === "discounted" || item.type === "current");
+                        if (isSale || bestArrPrice === null || rNum < bestArrPrice) {
+                          bestArrPrice = rNum;
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            if (bestArrPrice !== null) return String(bestArrPrice);
+            return null;
+          }
           var pKeys = ["amount","value","price","raw","displayValue","sellingPrice","discountedPrice","cost","currentPrice","text","formattedAmount"];
           for (var i = 0; i < pKeys.length; i++) {
             if (val[pKeys[i]] !== undefined) {
@@ -332,7 +358,7 @@ class WebViewScraper implements ProductScraper {
         }
 
         var foundPrice = null;
-        var priceKeys = ["price","currentPrice","sellingPrice","discountedPrice","salePrice","listingPrice","amount","itemPrice","cost","formattedPrice","rawPrice","displayPrice","offers"];
+        var priceKeys = ["price","currentPrice","sellingPrice","discountedPrice","salePrice","listingPrice","amount","itemPrice","cost","formattedPrice","rawPrice","displayPrice","offers","pricing_information","price_information","priceInformation","pricingInformation","current_price"];
         for (var pi = 0; pi < priceKeys.length; pi++) {
           if (obj[priceKeys[pi]] !== undefined && obj[priceKeys[pi]] !== null) {
             var p = getPrice(obj[priceKeys[pi]], 0);
@@ -515,8 +541,9 @@ class WebViewScraper implements ProductScraper {
         }
       }
 
-      // Find price
+      // Find price — collect ALL candidates, then pick the lowest valid price
       var priceText = null;
+      var priceCandidates = [];
       var priceSel = [
         '[data-aut-id="itemPrice"]',
         '[data-aut-id*="price"]',
@@ -567,26 +594,29 @@ class WebViewScraper implements ProductScraper {
         '.display-price',
         '.amount'
       ];
-      for (var pi = 0; pi < priceSel.length && !priceText; pi++) {
+      // Collect ALL price candidates, then pick the lowest valid price
+      for (var pi = 0; pi < priceSel.length; pi++) {
         try {
           var pels = document.querySelectorAll(priceSel[pi]);
-          for (var pei = 0; pei < pels.length && !priceText; pei++) {
+          for (var pei = 0; pei < pels.length; pei++) {
             if (isIgnoredPriceEl(pels[pei])) continue;
             var ptxt = (pels[pei].getAttribute("content") || pels[pei].innerText || pels[pei].textContent || "").trim();
             if (!ptxt || IGNORED_PRICE_TEXT.test(ptxt)) continue;
             var pn = getNumericPrice(ptxt);
-            if (pn && pn > 0) priceText = ptxt;
+            if (pn && pn > 0) {
+              priceCandidates.push({text: ptxt, value: pn});
+            }
           }
         } catch(e) {}
       }
 
       // Fallback: leaf text nodes with currency
-      if (!priceText) {
+      if (priceCandidates.length === 0) {
         var tags = ["span","div","p","b","strong","em","h1","h2","h3","h4","td"];
-        for (var tgi = 0; tgi < tags.length && !priceText; tgi++) {
+        for (var tgi = 0; tgi < tags.length; tgi++) {
           try {
             var tels = document.querySelectorAll(tags[tgi]);
-            for (var tei = 0; tei < tels.length && !priceText; tei++) {
+            for (var tei = 0; tei < tels.length; tei++) {
               if (tels[tei].children.length > 0) continue;
               if (isIgnoredPriceEl(tels[tei])) continue;
               var tt = (tels[tei].innerText || "").trim();
@@ -594,11 +624,24 @@ class WebViewScraper implements ProductScraper {
               if (IGNORED_PRICE_TEXT.test(tt)) continue;
               if (PRICE_REGEX.test(tt)) {
                 var tn = getNumericPrice(tt);
-                if (tn && tn > 0) priceText = tt;
+                if (tn && tn > 0) {
+                  priceCandidates.push({text: tt, value: tn});
+                }
               }
             }
           } catch(e) {}
         }
+      }
+
+      // Pick the LOWEST price among candidates (most likely the discounted/sale price)
+      if (priceCandidates.length > 0) {
+        var best = priceCandidates[0];
+        for (var ci = 1; ci < priceCandidates.length; ci++) {
+          if (priceCandidates[ci].value < best.value) {
+            best = priceCandidates[ci];
+          }
+        }
+        priceText = best.text;
       }
 
       // Find image

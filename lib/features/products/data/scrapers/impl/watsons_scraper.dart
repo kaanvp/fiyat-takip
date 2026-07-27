@@ -93,17 +93,19 @@ class WatsonsScraper extends BaseScraper {
       '.amount',
     ];
 
+    final candidates = <html_dom.Element>[];
+    final seen = <String>{};
     for (final selector in selectors) {
-      final el = document.querySelector(selector);
-      if (el != null) {
-        final text = el.attributes['content'] ?? el.text.trim();
-        if (text.isNotEmpty) {
-          final parsed = parsePrice(text);
-          if (parsed != null && parsed.$1 > 0) return parsed;
+      final elements = document.querySelectorAll(selector);
+      for (final element in elements) {
+        final text = element.attributes['content'] ?? element.text.trim();
+        if (text.isNotEmpty && !seen.contains(text)) {
+          seen.add(text);
+          candidates.add(element);
         }
       }
     }
-    return null;
+    return findBestPrice(candidates);
   }
 
   String? _extractImageUrl(html_dom.Document document, Uri url) {

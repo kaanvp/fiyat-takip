@@ -230,18 +230,50 @@ abstract class BaseScraper implements ProductScraper {
     }
   }
 
+  /// Extract a pure numeric price string from mixed text and parse to double.
+  /// Handles Turkish dot thousand separators ("2.437" → 2437).
+  double? _parseSinglePriceToken(String token) {
+    if (token.isEmpty) return null;
+    
+    // Extract the first/last numeric pattern from mixed text like "fiyat2.437" or "TL3.749"
+    final numberRegex = RegExp(r'(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)');
+    final matches = numberRegex.allMatches(token);
+    if (matches.isEmpty) return null;
+    
+    // Take the LAST number in the token (usually the meaningful one)
+    final priceStr = matches.last.group(1)!;
+    
+    // Now normalize the extracted number
+    String normalized = priceStr;
+    if (normalized.contains(',') && normalized.contains('.')) {
+      final lastDot = normalized.lastIndexOf('.');
+      final lastComma = normalized.lastIndexOf(',');
+      if (lastComma > lastDot) {
+        normalized = normalized.replaceAll('.', '').replaceFirst(',', '.');
+      } else {
+        normalized = normalized.replaceAll(',', '');
+      }
+    } else if (normalized.contains(',')) {
+      normalized = normalized.replaceFirst(',', '.');
+    } else if (normalized.contains('.')) {
+      // Turkish dot thousand separator: "2.437" → "2437"
+      // 3 digits after dot ("2.437") or multiple dots ("1.234.567") → thousand separator
+      final lastDot = normalized.lastIndexOf('.');
+      final afterLastDot = normalized.substring(lastDot + 1);
+      if (afterLastDot.length == 3 || normalized.indexOf('.') != lastDot) {
+        normalized = normalized.replaceAll('.', '');
+      }
+    }
+    
+    final p = double.tryParse(normalized);
+    return (p != null && p > 0) ? p : null;
+  }
+
   /// Parse price text to double and currency
   (double, String)? parsePrice(String priceText) {
     if (priceText.isEmpty) return null;
     
-    // Remove common currency symbols and whitespace
-    String cleaned = priceText
-        .replaceAll(RegExp(r'[^\d.,₺€$\£¥]'), '')
-        .trim();
-    
-    if (cleaned.isEmpty) return null;
-    
-    // Detect currency
+    // Detect currency first
     String currency = 'TRY';
     if (priceText.contains('€') || priceText.contains('EUR')) {
       currency = 'EUR';
@@ -252,6 +284,87 @@ abstract class BaseScraper implements ProductScraper {
     } else if (priceText.contains('₺') || priceText.contains('TL')) {
       currency = 'TRY';
     }
+    
+    // --- Step 1: Detect concatenated/multiple prices first ---
+    // Sites often put old + new price in one element: "3.749 TL 2.437 TL"
+    // Split text by spaces or currency symbols to check for multiple prices.
+    final tokens = priceText.split(RegExp(r'[\s₺€$£¥]'))
+        .where((t) => t.trim().isNotEmpty)
+        .map((t) => t.trim())
+        .toList();
+    
+    if (tokens.length >= 2) {
+      // Filter out currency labels (TL, TRY, USD, EUR, GBP)
+      final priceTokens = <String>[];
+      for (final token in tokens) {
+        final lower = token.toLowerCase();
+        if (lower == 'tl' || lower == 'try' || lower == 'usd' || lower == 'eur' || 
+            lower == 'gbp') {
+          continue;
+        }
+        if (RegExp(r'\d').hasMatch(token)) {
+          priceTokens.add(token);
+        }
+      }
+      
+      if (priceTokens.length >= 2) {
+        // Extract numeric substrings from each token (e.g., "fiyat2.437" → "2.437")
+        // and parse them to get actual price values
+        final parsedPrices = <double>[];
+        final numberRegex = RegExp(r'(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)');
+        for (final token in priceTokens) {
+          // Skip tokens that are clearly discount percentages (contain '%')
+          if (token.contains('%')) continue;
+          
+          final numbers = numberRegex.allMatches(token);
+          for (final m in numbers) {
+            final p = _parseSinglePriceToken(m.group(1)!);
+            if (p != null) {
+              parsedPrices.add(p);
+            }
+          }
+        }
+        if (parsedPrices.length >= 2) {
+          // Multiple prices found → return the LOWEST one (usually discounted/sale price)
+          // This handles both orderings: "3.749 TL 2.437 TL" (old first) and
+          // "İndirimli fiyat2.437 TL3.749 TL" (discounted first like Adidas)
+          parsedPrices.sort();
+          return (parsedPrices.first, currency);
+        }
+      }
+      
+      // If space-splitting found only 1 real price, it's a single price.
+      // Don't fall through to regex extraction which can split single prices.
+    }
+    
+    // Also handle no-space concatenation like "65,00₺57,90₺" where there are
+    // no space separators between prices. Only trigger when the original text
+    // has no space separators but has multiple currency symbols.
+    if (!priceText.contains(RegExp(r'\s')) && 
+        RegExp(r'[₺€$£¥]').allMatches(priceText).length >= 2) {
+      final allNumbers = RegExp(r'(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)')
+          .allMatches(priceText.replaceAll(RegExp(r'[₺€$£¥TLUSD EURGBP]+'), ' '));
+      final extracted = <double>[];
+      for (final m in allNumbers) {
+        final t = m.group(1)!;
+        if (t.length >= 3) {
+          final p = _parseSinglePriceToken(t);
+          if (p != null) extracted.add(p);
+        }
+      }
+      if (extracted.length >= 2) {
+        extracted.sort();
+        return (extracted.first, currency);
+      }
+    }
+    
+    // --- Step 2: Single price — use original parsing logic ---
+    // Remove common currency symbols and whitespace
+    String cleaned = priceText
+        .replaceAll(RegExp(r'[^\d.,₺€$\£¥]'), '')
+        .trim();
+    
+    if (cleaned.isEmpty) return null;
     
     // Remove currency symbols before parsing (₺, $, €, £, ¥)
     String digitsOnly = cleaned.replaceAll(RegExp(r'[₺€$\£¥]'), '');
@@ -275,6 +388,16 @@ abstract class BaseScraper implements ProductScraper {
       } else {
         // For other currencies, comma might be thousand separator
         normalized = digitsOnly.replaceAll(',', '');
+      }
+    } else if (digitsOnly.contains('.') && currency == 'TRY') {
+      // Only dots, no comma — in Turkish notation dots are thousand separators.
+      // Check if there are 3 digits after the last dot (e.g., "1.234", "14.999")
+      // or multiple dots (e.g., "1.234.567"). Remove all dots.
+      final lastDot = digitsOnly.lastIndexOf('.');
+      final afterLastDot = digitsOnly.substring(lastDot + 1);
+      if (afterLastDot.length == 3 || digitsOnly.indexOf('.') != lastDot) {
+        // Dots are thousand separators → remove them
+        normalized = digitsOnly.replaceAll('.', '');
       }
     }
     
@@ -355,42 +478,11 @@ abstract class BaseScraper implements ProductScraper {
       final priceText = element.attributes['content'] ?? element.text.trim();
       if (priceText.isEmpty) continue;
       
-      // Try direct parse first
+      // Try direct parse first — parsePrice now internally handles
+      // concatenated prices (e.g. "3.749 TL 2.437 TL") by detecting
+      // multiple price tokens and returning the last (discounted) one.
       var parsed = parsePrice(priceText);
-      
-      // If direct parse fails, the text might have multiple concatenated prices
-      // (e.g. "65,00₺57,90₺"). Try to extract individual prices.
-      if (parsed == null) {
-        // Find all price patterns in the text
-        final priceMatches = RegExp(
-          r'(\d+[.,]\d{2})\s*(?:₺|TL|TRY|USD|\$|EUR|€)?',
-          caseSensitive: false,
-        ).allMatches(priceText);
-        
-        if (priceMatches.isNotEmpty) {
-          // Take the LAST price match (usually the discounted/sale price)
-          final lastMatch = priceMatches.last;
-          final priceStr = lastMatch.group(1)!;
-          final currency = 'TRY'; // Default for Turkish sites
-          final normalized = priceStr.replaceAll(',', '.');
-          final price = double.tryParse(normalized);
-          if (price != null && price > 0) {
-            // Treat concatenated prices as medium priority
-            int priority = 2;
-            if (isSalePriceElement(element)) priority = 3;
-            else if (isOldPriceElement(element)) priority = 1;
-            
-            if (priority > bestPriority || 
-                (priority == bestPriority && (bestPrice == null || price < bestPrice))) {
-              bestPrice = price;
-              bestCurrency = currency;
-              bestPriority = priority;
-            }
-            continue;
-          }
-        }
-        continue;
-      }
+      if (parsed == null) continue;
       
       final price = parsed.$1;
       final currency = parsed.$2;

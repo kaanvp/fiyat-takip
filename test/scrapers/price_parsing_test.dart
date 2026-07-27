@@ -100,5 +100,20 @@ void main() {
       expect(scraper.parsePrice(''), isNull);
       expect(scraper.parsePrice('Stokta yok'), isNull);
     });
+
+    test('Adidas discounted price format (İndirimli fiyat2.437 TL3.749 TL ...)', () {
+      // Adidas puts both prices in one element's textContent with stuck text+numbers
+      final res = scraper.parsePrice('İndirimli fiyat2.437 TL3.749 TL Orijinal fiyat-35%İndirim');
+      expect(res, isNotNull);
+      expect(res!.$1, 2437.0); // Should pick the LOWEST price (discounted: 2.437 < 3.749)
+      expect(res.$2, 'TRY');
+    });
+
+    test('Adidas discounted — larger numbers (İndirimli fiyat3.999 TL7.499 TL ...)', () {
+      final res = scraper.parsePrice('İndirimli fiyat3.999 TL7.499 TL Orijinal fiyat-50%İndirim');
+      expect(res, isNotNull);
+      expect(res!.$1, 3999.0); // Lowest = discounted: 3.999 < 7.499
+      expect(res.$2, 'TRY');
+    });
   });
 }

@@ -399,6 +399,8 @@ class GenericHtmlScraper extends BaseScraper {
     'price', 'currentPrice', 'sellingPrice', 'discountedPrice',
     'salePrice', 'listingPrice', 'amount', 'itemPrice', 'cost',
     'formattedPrice', 'rawPrice', 'displayPrice',
+    // Adidas / Next.js style nested pricing objects
+    'pricing_information', 'price_information',
   ];
 
   String? _extractNameFromMap(Map<dynamic, dynamic> map) {
@@ -434,11 +436,28 @@ class GenericHtmlScraper extends BaseScraper {
       }
     }
     if (val is List && val.isNotEmpty) {
-      final first = val.first;
-      if (first is Map) {
-        final res = _extractPriceFromValue(first);
-        if (res != null && res.$1 > 0) return res;
+      // For price arrays, prefer "sale" type over "original", or pick the lowest price
+      double? bestPrice;
+      String? bestCurrency;
+      for (final item in val) {
+        if (item is Map) {
+          final res = _extractPriceFromValue(item);
+          if (res != null && res.$1 > 0) {
+            final type = item['type']?.toString().toLowerCase();
+            // Prefer sale/discounted prices; otherwise keep the lowest
+            if (type == 'sale' || type == 'discounted' || type == 'current' ||
+                bestPrice == null || res.$1 < bestPrice) {
+              bestPrice = res.$1;
+              bestCurrency = res.$2;
+            }
+          }
+        } else if (item is num && item > 0) {
+          if (bestPrice == null || item.toDouble() < bestPrice) {
+            bestPrice = item.toDouble();
+          }
+        }
       }
+      if (bestPrice != null) return (bestPrice, bestCurrency ?? 'TRY');
     }
     return null;
   }
@@ -639,6 +658,8 @@ class GenericHtmlScraper extends BaseScraper {
       '[class*="fiyat"]',
     ];
 
+    final candidates = <html_dom.Element>[];
+    final seen = <String>{};
     for (final selector in selectors) {
       try {
         final elements = document.querySelectorAll(selector);
@@ -649,14 +670,18 @@ class GenericHtmlScraper extends BaseScraper {
               element.attributes['value'] ?? element.text.trim();
           if (priceText.isEmpty) continue;
           if (_isIgnoredPriceText(priceText)) continue;
+          if (seen.contains(priceText)) continue;
 
-          final parsed = parsePrice(priceText);
-          if (parsed != null && parsed.$1 > 0) return parsed;
+          seen.add(priceText);
+          candidates.add(element);
         }
       } catch (_) {
         continue;
       }
     }
+
+    final bestPrice = findBestPrice(candidates);
+    if (bestPrice != null) return bestPrice;
 
     // Fallback: scan leaf text nodes for currency patterns
     final priceRegex = RegExp(
@@ -664,6 +689,8 @@ class GenericHtmlScraper extends BaseScraper {
       caseSensitive: false,
     );
 
+    final textCandidates = <html_dom.Element>[];
+    final seenTexts = <String>{};
     for (final tag in ['span', 'div', 'p', 'b', 'strong', 'em', 'h1', 'h2', 'h3', 'h4', 'td']) {
       final elements = document.querySelectorAll(tag);
       for (final element in elements) {
@@ -673,15 +700,16 @@ class GenericHtmlScraper extends BaseScraper {
         final text = element.text.trim();
         if (text.isEmpty || text.length > 100) continue;
         if (_isIgnoredPriceText(text)) continue;
+        if (seenTexts.contains(text)) continue;
 
         if (priceRegex.hasMatch(text)) {
-          final parsed = parsePrice(text);
-          if (parsed != null && parsed.$1 > 0) return parsed;
+          seenTexts.add(text);
+          textCandidates.add(element);
         }
       }
     }
 
-    return null;
+    return findBestPrice(textCandidates);
   }
 
   String? _extractImageUrl(html_dom.Document document, Uri url) {
